@@ -1,14 +1,18 @@
 package com.pickyboy.interviewcodex.service;
 
+import co.elastic.clients.elasticsearch.sql.QueryRequest;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.pickyboy.interviewcodex.common.BaseResponse;
+import com.pickyboy.interviewcodex.model.dto.post.PostQueryRequest;
 import com.pickyboy.interviewcodex.model.dto.question.QuestionQueryRequest;
+import com.pickyboy.interviewcodex.model.entity.Post;
 import com.pickyboy.interviewcodex.model.entity.Question;
 import com.pickyboy.interviewcodex.model.vo.QuestionVO;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 /**
  * 题目服务
@@ -60,4 +64,18 @@ public interface QuestionService extends IService<Question> {
      */
     Page<Question> listQuestionByPage(QuestionQueryRequest questionQueryRequest) ;
 
-    }
+    /**
+     * 从 ES 查询题目
+     *
+     * @param questionQueryRequest
+     * @return
+     */
+    Page<Question> searchFromEs(QuestionQueryRequest questionQueryRequest);
+
+    /**
+     * 批量删除题目
+     * @param questionIdList
+     */
+    void batchDeleteQuestions(List<Long> questionIdList);
+
+}

@@ -21,11 +21,14 @@ import com.pickyboy.interviewcodex.model.vo.LoginUserVO;
 import com.pickyboy.interviewcodex.model.vo.UserVO;
 import com.pickyboy.interviewcodex.service.UserService;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import io.swagger.models.auth.In;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 import me.chanjar.weixin.common.bean.oauth2.WxOAuth2AccessToken;
@@ -316,5 +319,33 @@ public class UserController {
         boolean result = userService.updateById(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
+    }
+
+    /**
+     * 添加用户签到记录
+     *
+     * @param request HTTP 请求对象，用于获取当前登录用户
+     * @return 是否签到成功
+     */
+    @PostMapping("/add/sign_in")
+    public BaseResponse<Boolean> addUserSignIn(HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        boolean result = userService.addUserSignIn(loginUser.getId());
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 获取用户签到记录
+     *
+     * @param year    查询的年份（可选），不传则默认当前年份
+     * @param request HTTP 请求对象，用于获取当前登录用户
+     * @return 用户签到的日期索引列表
+     */
+    @GetMapping("/get/sign_in")
+    public BaseResponse<List<Integer>> getUserSignInRecord(Integer year, HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        List<Integer> userSignInRecord = userService.getUserSignInRecord(loginUser.getId(), year);
+        return ResultUtils.success(userSignInRecord);
     }
 }

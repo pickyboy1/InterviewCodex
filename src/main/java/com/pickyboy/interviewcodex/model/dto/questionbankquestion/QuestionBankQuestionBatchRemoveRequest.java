@@ -6,10 +6,10 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * 创建题库题目关联请求
+ * 批量从题库移除题目关联请求
  */
 @Data
-public class QuestionBankQuestionAddRequest implements Serializable {
+public class QuestionBankQuestionBatchRemoveRequest implements Serializable {
 
 
     /**
@@ -20,7 +20,7 @@ public class QuestionBankQuestionAddRequest implements Serializable {
     /**
      * 题目 id
      */
-    private Long questionId;
+    private List<Long> questionIdList;
 
     private static final long serialVersionUID = 1L;
 }

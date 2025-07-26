@@ -11,10 +11,7 @@ import com.pickyboy.interviewcodex.constant.UserConstant;
 import com.pickyboy.interviewcodex.exception.BusinessException;
 import com.pickyboy.interviewcodex.exception.ThrowUtils;
 
-import com.pickyboy.interviewcodex.model.dto.questionbankquestion.QuestionBankQuestionAddRequest;
-import com.pickyboy.interviewcodex.model.dto.questionbankquestion.QuestionBankQuestionQueryRequest;
-import com.pickyboy.interviewcodex.model.dto.questionbankquestion.QuestionBankQuestionRemoveRequest;
-import com.pickyboy.interviewcodex.model.dto.questionbankquestion.QuestionBankQuestionUpdateRequest;
+import com.pickyboy.interviewcodex.model.dto.questionbankquestion.*;
 import com.pickyboy.interviewcodex.model.entity.QuestionBankQuestion;
 import com.pickyboy.interviewcodex.model.entity.User;
 import com.pickyboy.interviewcodex.model.vo.QuestionBankQuestionVO;
@@ -26,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 /**
  * 题库题目关联接口
@@ -172,7 +170,7 @@ public class QuestionBankQuestionController {
         long current = questionBankQuestionQueryRequest.getCurrent();
         long size = questionBankQuestionQueryRequest.getPageSize();
         // 限制爬虫
-        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(size > 200, ErrorCode.PARAMS_ERROR);
         // 查询数据库
         Page<QuestionBankQuestion> questionBankQuestionPage = questionBankQuestionService.page(new Page<>(current, size),
                 questionBankQuestionService.getQueryWrapper(questionBankQuestionQueryRequest));
@@ -225,6 +223,43 @@ public class QuestionBankQuestionController {
         boolean remove = questionBankQuestionService.remove(new LambdaQueryWrapper<QuestionBankQuestion>().
                 eq(QuestionBankQuestion::getQuestionBankId, questionBankId).eq(QuestionBankQuestion::getQuestionId, questionId));
 
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 批量添加题目题库关联
+     *
+     * @param batchAddRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/add/batch")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> batchAddQuestionBankQuestion(
+            @RequestBody QuestionBankQuestionBatchAddRequest batchAddRequest,HttpServletRequest request) {
+       ThrowUtils.throwIf(batchAddRequest == null, ErrorCode.PARAMS_ERROR);
+       User loginUser =  userService.getLoginUser(request);
+       Long questionBankId = batchAddRequest.getQuestionBankId();
+        List<Long> questionIdList = batchAddRequest.getQuestionIdList();
+        questionBankQuestionService.batchAddQuestionsToBank( questionIdList,questionBankId,loginUser);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 批量移除题目题库关联
+     *
+     * @param batchRemoveRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/remove/batch")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> batchRemoveQuestionBankQuestion(
+            @RequestBody QuestionBankQuestionBatchRemoveRequest batchRemoveRequest,HttpServletRequest request) {
+        ThrowUtils.throwIf(batchRemoveRequest == null, ErrorCode.PARAMS_ERROR);
+        Long questionBankId = batchRemoveRequest.getQuestionBankId();
+        List<Long> questionIdList = batchRemoveRequest.getQuestionIdList();
+        questionBankQuestionService.batchRemoveQuestionsFromBank( questionIdList,questionBankId);
         return ResultUtils.success(true);
     }
 

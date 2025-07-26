@@ -13,7 +13,11 @@ import com.pickyboy.interviewcodex.constant.CommonConstant;
 import com.pickyboy.interviewcodex.constant.UserConstant;
 import com.pickyboy.interviewcodex.exception.ThrowUtils;
 import com.pickyboy.interviewcodex.mapper.QuestionMapper;
+import com.pickyboy.interviewcodex.model.dto.post.PostQueryRequest;
+import com.pickyboy.interviewcodex.model.dto.question.QuestionEsDTO;
 import com.pickyboy.interviewcodex.model.dto.question.QuestionQueryRequest;
+import com.pickyboy.interviewcodex.model.dto.question.QuestionQueryRequest;
+import com.pickyboy.interviewcodex.model.entity.Question;
 import com.pickyboy.interviewcodex.model.entity.Question;
 import com.pickyboy.interviewcodex.model.entity.QuestionBankQuestion;
 import com.pickyboy.interviewcodex.model.entity.User;
@@ -26,16 +30,24 @@ import com.pickyboy.interviewcodex.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
+import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -53,6 +65,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
 
     @Resource
     private QuestionBankQuestionService questionBankQuestionService;
+
+    @Resource
+    private ElasticsearchRestTemplate elasticsearchRestTemplate;
 
     /**
      * 校验数据
@@ -227,5 +242,95 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         Page<Question> questionPage = this.page(new Page<>(current, size),
                 queryWrapper);
         return questionPage;
+    }
+
+
+    @Override
+    public Page<Question> searchFromEs(QuestionQueryRequest questionQueryRequest) {
+            Long id = questionQueryRequest.getId();
+            Long notId = questionQueryRequest.getNotId();
+            String searchText = questionQueryRequest.getSearchText();
+            Long questionBankId = questionQueryRequest.getQuestionBankId();
+            List<String> tagList = questionQueryRequest.getTags();
+            Long userId = questionQueryRequest.getUserId();
+            // es 起始页为 0
+            long current = questionQueryRequest.getCurrent() - 1;
+            long pageSize = questionQueryRequest.getPageSize();
+            String sortField = questionQueryRequest.getSortField();
+            String sortOrder = questionQueryRequest.getSortOrder();
+            // 构造查询条件
+            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+            // 过滤
+            boolQueryBuilder.filter(QueryBuilders.termQuery("isDelete", 0));
+            if (id != null) {
+                boolQueryBuilder.filter(QueryBuilders.termQuery("id", id));
+            }
+            if (notId != null) {
+                boolQueryBuilder.mustNot(QueryBuilders.termQuery("id", notId));
+            }
+            if (userId != null) {
+                boolQueryBuilder.filter(QueryBuilders.termQuery("userId", userId));
+            }
+            if(questionBankId!= null){
+                boolQueryBuilder.filter(QueryBuilders.termQuery("questionBankId", questionBankId));
+            }
+            // 必须包含所有标签
+            if (CollUtil.isNotEmpty(tagList)) {
+                for (String tag : tagList) {
+                    boolQueryBuilder.filter(QueryBuilders.termQuery("tags", tag));
+                }
+            }
+
+            // 按关键词检索
+            if (StringUtils.isNotBlank(searchText)) {
+                boolQueryBuilder.should(QueryBuilders.matchQuery("title", searchText));
+                boolQueryBuilder.should(QueryBuilders.matchQuery("description", searchText));
+                boolQueryBuilder.should(QueryBuilders.matchQuery("content", searchText));
+                // 满足一个即可
+                boolQueryBuilder.minimumShouldMatch(1);
+            }
+
+            // 排序
+            SortBuilder<?> sortBuilder = SortBuilders.scoreSort();
+            if (StringUtils.isNotBlank(sortField)) {
+                sortBuilder = SortBuilders.fieldSort(sortField);
+                sortBuilder.order(CommonConstant.SORT_ORDER_ASC.equals(sortOrder) ? SortOrder.ASC : SortOrder.DESC);
+            }
+            // 分页
+            PageRequest pageRequest = PageRequest.of((int) current, (int) pageSize);
+
+            // 构造查询
+            NativeSearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(boolQueryBuilder)
+                    .withPageable(pageRequest).withSorts(sortBuilder).build();
+            // 查询
+            SearchHits<QuestionEsDTO> searchHits = elasticsearchRestTemplate.search(searchQuery, QuestionEsDTO.class);
+
+            Page<Question> page = new Page<>();
+            page.setTotal(searchHits.getTotalHits());
+            List<Question> resourceList = new ArrayList<>();
+          // 构造返回结果
+            if (searchHits.hasSearchHits()) {
+                List<SearchHit<QuestionEsDTO>> searchHitList = searchHits.getSearchHits();
+               searchHitList.forEach(searchHit -> {
+                   resourceList.add(QuestionEsDTO.dtoToObj(searchHit.getContent()));
+                });
+            }
+            page.setRecords(resourceList);
+            return page;
+    }
+
+    /**
+     * 批量删除题目
+     * @param questionIdList
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchDeleteQuestions(List<Long> questionIdList) {
+        ThrowUtils.throwIf(CollUtil.isEmpty(questionIdList), ErrorCode.PARAMS_ERROR,"题目列表不能为空");
+        boolean result = this.removeBatchByIds(questionIdList);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "批量删除题目失败");
+        // 移除关联关系
+        questionBankQuestionService.remove(new LambdaQueryWrapper<QuestionBankQuestion>()
+                .in(QuestionBankQuestion::getQuestionId, questionIdList));
     }
 }

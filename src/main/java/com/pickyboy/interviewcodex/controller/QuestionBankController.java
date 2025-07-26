@@ -1,6 +1,10 @@
 package com.pickyboy.interviewcodex.controller;
 
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jd.platform.hotkey.client.callback.JdHotKeyStore;
 import com.pickyboy.interviewcodex.annotation.AuthCheck;
 import com.pickyboy.interviewcodex.common.BaseResponse;
 import com.pickyboy.interviewcodex.common.DeleteRequest;
@@ -134,7 +138,7 @@ public class QuestionBankController {
     }
 
     /**
-     * 根据 id 获取题库（封装类）
+     * 根据 id 获取题库详情（封装类）
      *
      * @param questionBankQueryRequest
      * @return
@@ -145,6 +149,22 @@ public class QuestionBankController {
         Long id = questionBankQueryRequest.getId();
         boolean needQueryQuestionList = questionBankQueryRequest.isNeedQueryQuestionList();
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+
+        // 判断有无缓存
+        // 生成key
+        String key  = "bank_detail_"+id;
+        // 如果是热key
+        // isHotKey方法会上报一次key,用于统计
+        if(JdHotKeyStore.isHotKey( key)){
+            // 从缓存读取
+            // getValue方法会自动上报一次key,用于统计,get方法不会,避免重复上报
+            QuestionBankVO questionBankVO = (QuestionBankVO) JdHotKeyStore.get(key);
+            if(questionBankVO != null){
+                // 缓存命中直接返回
+                return ResultUtils.success(questionBankVO);
+            }
+        }
+
         // 查询数据库
         QuestionBank questionBank = questionBankService.getById(id);
         ThrowUtils.throwIf(questionBank == null, ErrorCode.NOT_FOUND_ERROR);
@@ -157,7 +177,8 @@ public class QuestionBankController {
             Page<Question> questionPage = questionService.listQuestionByPage(questionQueryRequest);
             questionBankVO.setQuestionPage(questionPage);
         }
-
+        // 如果是热key,缓存
+        JdHotKeyStore.smartSet(key, questionBankVO);
         // 获取封装类
         return ResultUtils.success(questionBankVO);
     }
@@ -187,17 +208,38 @@ public class QuestionBankController {
      * @return
      */
     @PostMapping("/list/page/vo")
+    @SentinelResource(value = "listQuestionBankVOByPage",
+    blockHandler = "handleBlockException",
+    fallback = "handleFallback")
     public BaseResponse<Page<QuestionBankVO>> listQuestionBankVOByPage(@RequestBody QuestionBankQueryRequest questionBankQueryRequest,
                                                                HttpServletRequest request) {
         long current = questionBankQueryRequest.getCurrent();
         long size = questionBankQueryRequest.getPageSize();
+        log.info("{},{}",size,current);
         // 限制爬虫
-        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(size > 200, ErrorCode.PARAMS_ERROR);
         // 查询数据库
         Page<QuestionBank> questionBankPage = questionBankService.page(new Page<>(current, size),
                 questionBankService.getQueryWrapper(questionBankQueryRequest));
         // 获取封装类
         return ResultUtils.success(questionBankService.getQuestionBankVOPage(questionBankPage, request));
+    }
+    // 处理Sentinel本身抛出的异常,包括blockException和fallback
+    public BaseResponse<Page<QuestionBankVO>> handleBlockException(QuestionBankQueryRequest questionBankQueryRequest,
+                                                                   HttpServletRequest request, BlockException ex) {
+        // 降级处理
+        if(ex instanceof DegradeException){
+            return handleFallback(questionBankQueryRequest, request, ex);
+        }
+        log.error("listQuestionBankVOByPage被限流了");
+        return ResultUtils.error(ErrorCode.SYSTEM_ERROR,"系统压力过大,请耐心等待");
+    }
+
+    // 处理业务异常
+    public BaseResponse<Page<QuestionBankVO>> handleFallback(QuestionBankQueryRequest questionBankQueryRequest,
+                                                                   HttpServletRequest request, Throwable ex) {
+        log.error("listQuestionBankVOByPage被降级了");
+        return ResultUtils.success(null);
     }
 
     /**

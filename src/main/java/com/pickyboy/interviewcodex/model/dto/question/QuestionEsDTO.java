@@ -1,13 +1,13 @@
-package com.pickyboy.interviewcodex.model.dto.post;
+package com.pickyboy.interviewcodex.model.dto.question;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.json.JSONUtil;
-import com.pickyboy.interviewcodex.model.entity.Post;
+import com.pickyboy.interviewcodex.model.entity.Question;
 import lombok.Data;
-
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
@@ -22,11 +22,11 @@ import java.util.List;
  * @from <a href="https://yupi.icu">编程导航知识星球</a>
  **/
 // todo 取消注释开启 ES（须先配置 ES）
-//@Document(indexName = "post")
+@Document(indexName = "question")
 @Data
-public class PostEsDTO implements Serializable {
+public class QuestionEsDTO implements Serializable {
 
-    private static final String DATE_TIME_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
+    private static final String DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
     /**
      * id
@@ -86,38 +86,38 @@ public class PostEsDTO implements Serializable {
     /**
      * 对象转包装类
      *
-     * @param post
+     * @param question
      * @return
      */
-    public static PostEsDTO objToDto(Post post) {
-        if (post == null) {
+    public static QuestionEsDTO objToDto(Question question) {
+        if (question == null) {
             return null;
         }
-        PostEsDTO postEsDTO = new PostEsDTO();
-        BeanUtils.copyProperties(post, postEsDTO);
-        String tagsStr = post.getTags();
+        QuestionEsDTO questionEsDTO = new QuestionEsDTO();
+        BeanUtils.copyProperties(question, questionEsDTO);
+        String tagsStr = question.getTags();
         if (StringUtils.isNotBlank(tagsStr)) {
-            postEsDTO.setTags(JSONUtil.toList(JSONUtil.parseArray(tagsStr), String.class));
+            questionEsDTO.setTags(JSONUtil.toList(JSONUtil.parseArray(tagsStr), String.class));
         }
-        return postEsDTO;
+        return questionEsDTO;
     }
 
     /**
      * 包装类转对象
      *
-     * @param postEsDTO
+     * @param questionEsDTO
      * @return
      */
-    public static Post dtoToObj(PostEsDTO postEsDTO) {
-        if (postEsDTO == null) {
+    public static Question dtoToObj(QuestionEsDTO questionEsDTO) {
+        if (questionEsDTO == null) {
             return null;
         }
-        Post post = new Post();
-        BeanUtils.copyProperties(postEsDTO, post);
-        List<String> tagList = postEsDTO.getTags();
+        Question question = new Question();
+        BeanUtils.copyProperties(questionEsDTO, question);
+        List<String> tagList = questionEsDTO.getTags();
         if (CollUtil.isNotEmpty(tagList)) {
-            post.setTags(JSONUtil.toJsonStr(tagList));
+            question.setTags(JSONUtil.toJsonStr(tagList));
         }
-        return post;
+        return question;
     }
 }

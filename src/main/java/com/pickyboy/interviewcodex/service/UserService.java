@@ -6,8 +6,13 @@ import com.pickyboy.interviewcodex.model.dto.user.UserQueryRequest;
 import com.pickyboy.interviewcodex.model.entity.User;
 import com.pickyboy.interviewcodex.model.vo.LoginUserVO;
 import com.pickyboy.interviewcodex.model.vo.UserVO;
+
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
+
+import io.swagger.models.auth.In;
 import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 
 /**
@@ -117,5 +122,17 @@ public interface UserService extends IService<User> {
      * @return
      */
     QueryWrapper<User> getQueryWrapper(UserQueryRequest userQueryRequest);
+
+    /*
+    *
+    * 签到
+    * */
+    boolean addUserSignIn(long userId);
+
+    /*
+    *
+    * 获取用户签到信息
+    * */
+    List<Integer> getUserSignInRecord(long userId, Integer year);
 
 }

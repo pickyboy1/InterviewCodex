@@ -9,7 +9,7 @@ import java.util.List;
  * 创建题库题目关联请求
  */
 @Data
-public class QuestionBankQuestionAddRequest implements Serializable {
+public class QuestionBankQuestionBatchAddRequest implements Serializable {
 
 
     /**
@@ -20,7 +20,7 @@ public class QuestionBankQuestionAddRequest implements Serializable {
     /**
      * 题目 id
      */
-    private Long questionId;
+    private List<Long> questionIdList;
 
     private static final long serialVersionUID = 1L;
 }

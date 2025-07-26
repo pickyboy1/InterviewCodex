@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pickyboy.interviewcodex.common.ErrorCode;
 import com.pickyboy.interviewcodex.constant.CommonConstant;
+import com.pickyboy.interviewcodex.constant.RedisConstant;
 import com.pickyboy.interviewcodex.exception.BusinessException;
 import com.pickyboy.interviewcodex.mapper.UserMapper;
 import com.pickyboy.interviewcodex.model.dto.user.UserQueryRequest;
@@ -16,13 +17,20 @@ import com.pickyboy.interviewcodex.model.vo.LoginUserVO;
 import com.pickyboy.interviewcodex.model.vo.UserVO;
 import com.pickyboy.interviewcodex.service.UserService;
 import com.pickyboy.interviewcodex.utils.SqlUtils;
-import java.util.ArrayList;
-import java.util.List;
+
+import java.time.LocalDate;
+import java.time.Year;
+import java.util.*;
 import java.util.stream.Collectors;
+import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+
+import io.swagger.models.auth.In;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 import org.apache.commons.lang3.StringUtils;
+import org.redisson.api.RBitSet;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
@@ -37,6 +45,8 @@ import org.springframework.util.DigestUtils;
 @Slf4j
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
+    @Resource
+    private RedissonClient redissonClient;
     /**
      * 盐值，混淆密码
      */
@@ -268,5 +278,55 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
                 sortField);
         return queryWrapper;
+    }
+
+    @Override
+    public boolean addUserSignIn(long userId) {
+        LocalDate date = LocalDate.now();
+        String key = RedisConstant.getUserSignInRedisKey(date.getYear(), userId);
+        // 获取Redis的BitMap
+        RBitSet bitSet = redissonClient.getBitSet(key);
+        int offset = date.getDayOfYear();
+        if(!bitSet.get(offset)){
+            bitSet.set(offset,true);
+        }
+        return true;
+    }
+
+    /*
+    * 返回对应年份签到了的日期的索引结合
+    * */
+    @Override
+    public List<Integer> getUserSignInRecord(long userId, Integer year) {
+        if(year == null){
+            LocalDate date = LocalDate.now();
+            year = date.getYear();
+        }
+        String key = RedisConstant.getUserSignInRedisKey(year, userId);
+        // 获取Redis的BitMap,转换成java的BitSet,将数据一次性拉取缓存过来,避免多次请求
+        BitSet bitSet = redissonClient.getBitSet(key).asBitSet();
+        // 构造返回结果
+        List<Integer> result = new ArrayList<>();
+        // 获取年份总天数
+        int totalDays = Year.of(year).length();
+        //
+/*        for (int  dayOfYear = 1;  dayOfYear <totalDays ;  dayOfYear++) {
+
+            //是否签到
+             if(bitSet.get(dayOfYear)) {
+                 result.add(dayOfYear);
+             }
+        }*/
+        // 使用BitSet API 获取签到日期
+        int fromIndex = 0;
+        while (true) {
+            int nextBitIndex = bitSet.nextSetBit(fromIndex);
+            if (nextBitIndex == -1) {
+                break; // 没有更多签到日了，退出循环
+            }
+            result.add(nextBitIndex);
+            fromIndex = nextBitIndex + 1; // 从找到的下一位开始继续搜索
+        }
+        return result;
     }
 }

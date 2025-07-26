@@ -2,6 +2,12 @@ package com.pickyboy.interviewcodex.controller;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.json.JSONUtil;
+import com.alibaba.csp.sentinel.Entry;
+import com.alibaba.csp.sentinel.EntryType;
+import com.alibaba.csp.sentinel.SphU;
+import com.alibaba.csp.sentinel.Tracer;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -13,10 +19,7 @@ import com.pickyboy.interviewcodex.common.ResultUtils;
 import com.pickyboy.interviewcodex.constant.UserConstant;
 import com.pickyboy.interviewcodex.exception.BusinessException;
 import com.pickyboy.interviewcodex.exception.ThrowUtils;
-import com.pickyboy.interviewcodex.model.dto.question.QuestionAddRequest;
-import com.pickyboy.interviewcodex.model.dto.question.QuestionEditRequest;
-import com.pickyboy.interviewcodex.model.dto.question.QuestionQueryRequest;
-import com.pickyboy.interviewcodex.model.dto.question.QuestionUpdateRequest;
+import com.pickyboy.interviewcodex.model.dto.question.*;
 import com.pickyboy.interviewcodex.model.entity.Question;
 import com.pickyboy.interviewcodex.model.entity.QuestionBank;
 import com.pickyboy.interviewcodex.model.entity.QuestionBankQuestion;
@@ -130,6 +133,10 @@ public class QuestionController {
         // todo 在此处将实体类和 DTO 进行转换
         Question question = new Question();
         BeanUtils.copyProperties(questionUpdateRequest, question);
+        List<String> tags = questionUpdateRequest.getTags();
+        if (tags != null)  {
+            question.setTags(JSONUtil.toJsonStr(tags));
+        }
         // 数据校验
         questionService.validQuestion(question, false);
         // 判断是否存在
@@ -191,6 +198,55 @@ public class QuestionController {
                 questionService.getQueryWrapper(questionQueryRequest));
         // 获取封装类
         return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
+    }
+
+    /**
+     * 分页获取题目列表（限流版本）
+     *
+     * @param questionQueryRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/list/page/vo/sentinel")
+    public BaseResponse<Page<QuestionVO>> listQuestionVOByPageSentinel(@RequestBody QuestionQueryRequest questionQueryRequest,
+                                                               HttpServletRequest request) {
+        long current = questionQueryRequest.getCurrent();
+        long size = questionQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        // 基于ip限流
+        String remoteAddr = request.getRemoteAddr();
+        Entry entry = null;
+        try {
+            entry = SphU.entry("listQuestionVOByPageSentinel", EntryType.IN,1,remoteAddr);
+            // 被保护的资源
+            // 查询数据库
+            Page<Question> questionPage = questionService.page(new Page<>(current, size),
+                    questionService.getQueryWrapper(questionQueryRequest));
+            // 获取封装类
+            return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
+        }
+        catch(Throwable e){
+            // 非注解方式声明资源,业务自身异常需要手动上报给sentinel,触发熔断降级
+            if(!BlockException.isBlockException( e)){
+                Tracer.trace(e);
+                return ResultUtils.error(ErrorCode.SYSTEM_ERROR,"系统错误");
+            }
+            if(e instanceof DegradeException){
+                return handleFallback(questionQueryRequest, request, e);
+            }
+            return ResultUtils.error(ErrorCode.SYSTEM_ERROR,"访问过于频繁,请稍后再试");
+        }
+        finally {
+            if (entry != null) {
+                entry.exit(1,remoteAddr);
+            }
+        }
+    }
+
+    public BaseResponse<Page<QuestionVO>> handleFallback(QuestionQueryRequest questionQueryRequest,
+                                                                   HttpServletRequest request, Throwable ex) {
+        return ResultUtils.success( null);
     }
 
     /**
@@ -256,4 +312,27 @@ public class QuestionController {
     }
 
     // endregion
+    /*
+    *  es搜索题目
+    * */
+    @PostMapping("/search/page/vo")
+    public BaseResponse<Page<QuestionVO>> searchQuestionByPage(@RequestBody QuestionQueryRequest questionQueryRequest
+    , HttpServletRequest request) {
+
+        long size = questionQueryRequest.getPageSize();
+        ThrowUtils.throwIf(size > 200, ErrorCode.PARAMS_ERROR);
+        Page<Question> questionPage = questionService.searchFromEs(questionQueryRequest);
+        return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
+    }
+
+    /**
+     * 批量删除题目(及对应关联关系)
+     */
+    @PostMapping("/delete/batch")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> deleteBatchQuestions(@RequestBody QuestionBatchDeleteRequest questionBatchDeleteRequest) {
+        ThrowUtils.throwIf(questionBatchDeleteRequest==null, ErrorCode.PARAMS_ERROR, "题目列表不能为空");
+        questionService.batchDeleteQuestions(questionBatchDeleteRequest.getQuestionIdList());
+        return ResultUtils.success(true);
+    }
 }
