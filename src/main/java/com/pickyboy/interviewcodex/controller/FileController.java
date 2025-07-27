@@ -1,13 +1,12 @@
+/*
 package com.pickyboy.interviewcodex.controller;
 
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.file.FileNameUtil;
 import com.pickyboy.interviewcodex.common.BaseResponse;
 import com.pickyboy.interviewcodex.common.ErrorCode;
 import com.pickyboy.interviewcodex.common.ResultUtils;
 import com.pickyboy.interviewcodex.constant.FileConstant;
 import com.pickyboy.interviewcodex.exception.BusinessException;
-import com.pickyboy.interviewcodex.manager.CosManager;
 import com.pickyboy.interviewcodex.model.dto.file.UploadFileRequest;
 import com.pickyboy.interviewcodex.model.entity.User;
 import com.pickyboy.interviewcodex.model.enums.FileUploadBizEnum;
@@ -24,12 +23,14 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+*/
 /**
  * 文件接口
  *
  * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
  * @from <a href="https://yupi.icu">编程导航知识星球</a>
- */
+ *//*
+
 @RestController
 @RequestMapping("/file")
 @Slf4j
@@ -41,14 +42,16 @@ public class FileController {
     @Resource
     private CosManager cosManager;
 
-    /**
+    */
+/**
      * 文件上传
      *
      * @param multipartFile
      * @param uploadFileRequest
      * @param request
      * @return
-     */
+     *//*
+
     @PostMapping("/upload")
     public BaseResponse<String> uploadFile(@RequestPart("file") MultipartFile multipartFile,
             UploadFileRequest uploadFileRequest, HttpServletRequest request) {
@@ -85,12 +88,14 @@ public class FileController {
         }
     }
 
-    /**
+    */
+/**
      * 校验文件
      *
      * @param multipartFile
      * @param fileUploadBizEnum 业务类型
-     */
+     *//*
+
     private void validFile(MultipartFile multipartFile, FileUploadBizEnum fileUploadBizEnum) {
         // 文件大小
         long fileSize = multipartFile.getSize();
@@ -107,3 +112,4 @@ public class FileController {
         }
     }
 }
+*/

@@ -1,3 +1,4 @@
+/*
 package com.pickyboy.interviewcodex.controller;
 
 import com.pickyboy.interviewcodex.wxmp.WxMpConstant;
@@ -22,12 +23,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+*/
 /**
  * 微信公众号相关接口
  *
  * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
  * @from <a href="https://yupi.icu">编程导航知识星球</a>
- **/
+ **//*
+
 @RestController
 @RequestMapping("/")
 @Slf4j
@@ -89,12 +92,14 @@ public class WxMpController {
         }
     }
 
-    /**
+    */
+/**
      * 设置公众号菜单
      *
      * @return
      * @throws WxErrorException
-     */
+     *//*
+
     @GetMapping("/setMenu")
     public String setMenu() throws WxErrorException {
         log.info("setMenu");
@@ -133,3 +138,4 @@ public class WxMpController {
         return "ok";
     }
 }
+*/

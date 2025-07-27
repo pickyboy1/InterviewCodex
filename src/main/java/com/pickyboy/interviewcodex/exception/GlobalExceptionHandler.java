@@ -1,5 +1,8 @@
 package com.pickyboy.interviewcodex.exception;
 
+import cn.dev33.satoken.exception.NotLoginException;
+import cn.dev33.satoken.exception.NotPermissionException;
+import cn.dev33.satoken.exception.NotRoleException;
 import com.pickyboy.interviewcodex.common.BaseResponse;
 import com.pickyboy.interviewcodex.common.ErrorCode;
 import com.pickyboy.interviewcodex.common.ResultUtils;
@@ -27,5 +30,24 @@ public class GlobalExceptionHandler {
     public BaseResponse<?> runtimeExceptionHandler(RuntimeException e) {
         log.error("RuntimeException", e);
         return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "系统错误");
+    }
+
+    // Sa-Token相关异常处理
+    @ExceptionHandler(NotRoleException.class)
+    public BaseResponse<?> notRoleExceptionHandler(NotRoleException e) {
+        log.error("NotRoleException", e);
+        return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, "无权限");
+    }
+
+    @ExceptionHandler(NotPermissionException.class)
+    public BaseResponse<?> notPermissionExceptionHandler(NotPermissionException e) {
+        log.error("NotPermissionException", e);
+        return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, "无权限");
+    }
+
+    @ExceptionHandler(NotLoginException.class)
+    public BaseResponse<?> notLoginExceptionHandler(NotLoginException e) {
+        log.error("NotLoginException", e);
+        return ResultUtils.error(ErrorCode.NOT_LOGIN_ERROR, "未登录");
     }
 }

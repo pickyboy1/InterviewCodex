@@ -8,7 +8,6 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.validation.constraints.NotNull;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -37,7 +36,10 @@ public class NacosListener implements InitializingBean {
 
                private final AtomicInteger poolNumber = new AtomicInteger(1);
                @Override
-               public Thread newThread(@NotNull Runnable r){
+               public Thread newThread(Runnable r){
+                   if(r == null){
+                        return new Thread(() -> {log.info("未指定任务");});
+                   }
                    Thread thread = new Thread(r);
                    thread.setName("refresh-ThreadPool" + poolNumber.getAndIncrement());
                    return thread;

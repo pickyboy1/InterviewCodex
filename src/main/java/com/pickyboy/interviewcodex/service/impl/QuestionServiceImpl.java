@@ -13,7 +13,6 @@ import com.pickyboy.interviewcodex.constant.CommonConstant;
 import com.pickyboy.interviewcodex.constant.UserConstant;
 import com.pickyboy.interviewcodex.exception.ThrowUtils;
 import com.pickyboy.interviewcodex.mapper.QuestionMapper;
-import com.pickyboy.interviewcodex.model.dto.post.PostQueryRequest;
 import com.pickyboy.interviewcodex.model.dto.question.QuestionEsDTO;
 import com.pickyboy.interviewcodex.model.dto.question.QuestionQueryRequest;
 import com.pickyboy.interviewcodex.model.dto.question.QuestionQueryRequest;
@@ -245,6 +244,11 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     }
 
 
+    /**
+     * 通过ES搜索题目列表
+     * @param questionQueryRequest
+     * @return
+     */
     @Override
     public Page<Question> searchFromEs(QuestionQueryRequest questionQueryRequest) {
             Long id = questionQueryRequest.getId();

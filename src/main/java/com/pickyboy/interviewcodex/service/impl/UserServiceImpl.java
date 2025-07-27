@@ -2,6 +2,7 @@ package com.pickyboy.interviewcodex.service.impl;
 
 import static com.pickyboy.interviewcodex.constant.UserConstant.USER_LOGIN_STATE;
 
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -9,12 +10,14 @@ import com.pickyboy.interviewcodex.common.ErrorCode;
 import com.pickyboy.interviewcodex.constant.CommonConstant;
 import com.pickyboy.interviewcodex.constant.RedisConstant;
 import com.pickyboy.interviewcodex.exception.BusinessException;
+import com.pickyboy.interviewcodex.exception.ThrowUtils;
 import com.pickyboy.interviewcodex.mapper.UserMapper;
 import com.pickyboy.interviewcodex.model.dto.user.UserQueryRequest;
 import com.pickyboy.interviewcodex.model.entity.User;
 import com.pickyboy.interviewcodex.model.enums.UserRoleEnum;
 import com.pickyboy.interviewcodex.model.vo.LoginUserVO;
 import com.pickyboy.interviewcodex.model.vo.UserVO;
+import com.pickyboy.interviewcodex.satoken.DeviceUtils;
 import com.pickyboy.interviewcodex.service.UserService;
 import com.pickyboy.interviewcodex.utils.SqlUtils;
 
@@ -27,7 +30,6 @@ import javax.servlet.http.HttpServletRequest;
 
 import io.swagger.models.auth.In;
 import lombok.extern.slf4j.Slf4j;
-import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.redisson.api.RBitSet;
 import org.redisson.api.RedissonClient;
@@ -115,11 +117,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
         }
         // 3. 记录用户的登录态
-        request.getSession().setAttribute(USER_LOGIN_STATE, user);
+        // request.getSession().setAttribute(USER_LOGIN_STATE, user);
+        // Sa-Token 登录
+        StpUtil.login(user.getId(), DeviceUtils.getRequestDevice( request));
+        StpUtil.getSession().set(USER_LOGIN_STATE,user);
         return this.getLoginUserVO(user);
     }
 
-    @Override
+  /*  @Override
     public LoginUserVO userLoginByMpOpen(WxOAuth2UserInfo wxOAuth2UserInfo, HttpServletRequest request) {
         String unionId = wxOAuth2UserInfo.getUnionId();
         String mpOpenId = wxOAuth2UserInfo.getOpenid();
@@ -149,7 +154,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             request.getSession().setAttribute(USER_LOGIN_STATE, user);
             return getLoginUserVO(user);
         }
-    }
+    }*/
 
     /**
      * 获取当前登录用户
@@ -160,14 +165,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public User getLoginUser(HttpServletRequest request) {
         // 先判断是否已登录
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        User currentUser = (User) userObj;
-        if (currentUser == null || currentUser.getId() == null) {
-            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
+        Object userId = StpUtil.getLoginIdDefaultNull();
+        if(userId == null){
+            ThrowUtils.throwIf(true, ErrorCode.NOT_LOGIN_ERROR);
         }
-        // 从数据库查询（追求性能的话可以注释，直接走缓存）
-        long userId = currentUser.getId();
-        currentUser = this.getById(userId);
+//        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
+//        User currentUser = (User) userObj;
+//        if (currentUser == null || currentUser.getId() == null) {
+//            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
+//        }
+//        // 从数据库查询（追求性能的话可以注释，直接走缓存）
+//        long userId = currentUser.getId();
+        User currentUser = this.getById((String) userId);
         if (currentUser == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
@@ -219,11 +228,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public boolean userLogout(HttpServletRequest request) {
-        if (request.getSession().getAttribute(USER_LOGIN_STATE) == null) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
-        }
-        // 移除登录态
-        request.getSession().removeAttribute(USER_LOGIN_STATE);
+        StpUtil.isLogin();
+        StpUtil.logout();
+//        if (request.getSession().getAttribute(USER_LOGIN_STATE) == null) {
+//            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
+//        }
+//        // 移除登录态
+//        request.getSession().removeAttribute(USER_LOGIN_STATE);
         return true;
     }
 

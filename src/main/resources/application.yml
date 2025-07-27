@@ -162,6 +162,17 @@ nacos:
     group: DEFAULT_GROUP
     type: yaml
     auto-refresh: true
+# Sa-Token
+sa-token:
+#  token 名
+  token-name: interviewCodex
+#  token 有效期
+  timeout: 2592000 # token 有效期，单位秒
+  active-timeout: -1 # token最低活跃频率,超过此时间没访问系统就会被冻结,默认-1,不限制
+  is-concurrent: false # 是否允许同一账号多地同时登录
+  is-share: true # 多人同时登陆,是否共用token
+  token-style: uuid
+  is-log: true
 
 # 微信相关
 wx:
