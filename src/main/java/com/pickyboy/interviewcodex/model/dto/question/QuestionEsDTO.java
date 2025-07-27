@@ -50,14 +50,9 @@ public class QuestionEsDTO implements Serializable {
     private List<String> tags;
 
     /**
-     * 点赞数
+     * 回答
      */
-    private Integer thumbNum;
-
-    /**
-     * 收藏数
-     */
-    private Integer favourNum;
+    private String answer;
 
     /**
      * 创建用户 id
@@ -75,6 +70,12 @@ public class QuestionEsDTO implements Serializable {
      */
     @Field(index = false, store = true, type = FieldType.Date, format = {}, pattern = DATE_TIME_PATTERN)
     private Date updateTime;
+
+    /**
+     * 编辑时间
+     */
+    @Field(index = false, store = true, type = FieldType.Date, format = {}, pattern = DATE_TIME_PATTERN)
+    private Date editTime;
 
     /**
      * 是否删除
