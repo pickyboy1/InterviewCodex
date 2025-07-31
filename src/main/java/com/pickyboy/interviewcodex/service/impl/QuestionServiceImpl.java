@@ -1,22 +1,21 @@
 package com.pickyboy.interviewcodex.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
+import com.alibaba.csp.sentinel.slots.block.flow.FlowException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.pickyboy.interviewcodex.annotation.AuthCheck;
-import com.pickyboy.interviewcodex.common.BaseResponse;
 import com.pickyboy.interviewcodex.common.ErrorCode;
-import com.pickyboy.interviewcodex.common.ResultUtils;
 import com.pickyboy.interviewcodex.constant.CommonConstant;
-import com.pickyboy.interviewcodex.constant.UserConstant;
+import com.pickyboy.interviewcodex.exception.BusinessException;
 import com.pickyboy.interviewcodex.exception.ThrowUtils;
 import com.pickyboy.interviewcodex.mapper.QuestionMapper;
 import com.pickyboy.interviewcodex.model.dto.question.QuestionEsDTO;
 import com.pickyboy.interviewcodex.model.dto.question.QuestionQueryRequest;
-import com.pickyboy.interviewcodex.model.dto.question.QuestionQueryRequest;
-import com.pickyboy.interviewcodex.model.entity.Question;
 import com.pickyboy.interviewcodex.model.entity.Question;
 import com.pickyboy.interviewcodex.model.entity.QuestionBankQuestion;
 import com.pickyboy.interviewcodex.model.entity.User;
@@ -30,19 +29,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
 import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
+import org.springframework.data.elasticsearch.core.suggest.response.CompletionSuggestion;
+import org.springframework.data.elasticsearch.core.suggest.response.Suggest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.RequestBody;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
@@ -77,15 +80,15 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     @Override
     public void validQuestion(Question question, boolean add) {
         ThrowUtils.throwIf(question == null, ErrorCode.PARAMS_ERROR);
-        // todo 从对象中取值
+        // 从对象中取值
         String title = question.getTitle();
         // 创建数据时，参数不能为空
         if (add) {
-            // todo 补充校验规则
+            // 补充校验规则
             ThrowUtils.throwIf(StringUtils.isBlank(title), ErrorCode.PARAMS_ERROR);
         }
         // 修改数据时，有参数则校验
-        // todo 补充校验规则
+        // 补充校验规则
         if (StringUtils.isNotBlank(title)) {
             ThrowUtils.throwIf(title.length() > 80, ErrorCode.PARAMS_ERROR, "标题过长");
         }
@@ -103,7 +106,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         if (questionQueryRequest == null) {
             return queryWrapper;
         }
-        // todo 从对象中取值
+        // 从对象中取值
         Long id = questionQueryRequest.getId();
         Long notId = questionQueryRequest.getNotId();
         String title = questionQueryRequest.getTitle();
@@ -114,7 +117,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         List<String> tagList = questionQueryRequest.getTags();
         Long userId = questionQueryRequest.getUserId();
         String anwser = questionQueryRequest.getAnswer();
-        // todo 补充需要的查询条件
+        // 补充需要的查询条件
         // 从多字段中搜索
         if (StringUtils.isNotBlank(searchText)) {
             // 需要拼接查询条件
@@ -135,6 +138,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         queryWrapper.eq(ObjectUtils.isNotEmpty(id), "id", id);
         queryWrapper.eq(ObjectUtils.isNotEmpty(userId), "userId", userId);
         // 排序规则
+        if(sortField.equals("error")){
+            sortField = null;
+        }
         queryWrapper.orderBy(SqlUtils.validSortField(sortField),
                 sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
                 sortField);
@@ -153,7 +159,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         // 对象转封装类
         QuestionVO questionVO = QuestionVO.objToVo(question);
 
-        // todo 可以根据需要为封装对象补充值，不需要的内容可以删除
+        //  可以根据需要为封装对象补充值，不需要的内容可以删除
         // region 可选
         // 1. 关联查询用户信息
         Long userId = question.getUserId();
@@ -188,7 +194,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             return QuestionVO.objToVo(question);
         }).collect(Collectors.toList());
 
-        // todo 可以根据需要为封装对象补充值，不需要的内容可以删除
+        //  可以根据需要为封装对象补充值，不需要的内容可以删除
         // region 可选
         // 1. 关联查询用户信息
         Set<Long> userIdSet = questionList.stream().map(Question::getUserId).collect(Collectors.toSet());
@@ -245,15 +251,36 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
 
 
     /**
+     * 从数据库分页搜索
+     * @param questionQueryRequest
+     * @return
+     */
+    private Page<Question> searchFromDb(QuestionQueryRequest questionQueryRequest) {
+        QueryWrapper<Question> wrapper = getQueryWrapper(questionQueryRequest);
+        Page<Question> page = page(new Page<>(questionQueryRequest.getCurrent(), questionQueryRequest.getPageSize()
+        ),wrapper);
+        return page;
+    }
+
+    /**
      * 通过ES搜索题目列表
      * @param questionQueryRequest
      * @return
      */
     @Override
+    @SentinelResource(
+            value = "searchFromEs", // 资源名，在 Sentinel 控制台配置规则时使用
+            blockHandler = "handleSearchBlock", // 指定流控降级后的处理方法
+            fallback = "handleSearchFallback"  // 指定熔断降级后的处理方法
+    )
     public Page<Question> searchFromEs(QuestionQueryRequest questionQueryRequest) {
+
             Long id = questionQueryRequest.getId();
             Long notId = questionQueryRequest.getNotId();
             String searchText = questionQueryRequest.getSearchText();
+            if(searchText.equals("error")){
+                throw new BusinessException(123,"测试Es错误降级");
+            }
             Long questionBankId = questionQueryRequest.getQuestionBankId();
             List<String> tagList = questionQueryRequest.getTags();
             Long userId = questionQueryRequest.getUserId();
@@ -307,20 +334,161 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             NativeSearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(boolQueryBuilder)
                     .withPageable(pageRequest).withSorts(sortBuilder).build();
             // 查询
-            SearchHits<QuestionEsDTO> searchHits = elasticsearchRestTemplate.search(searchQuery, QuestionEsDTO.class);
+               SearchHits<QuestionEsDTO> searchHits = elasticsearchRestTemplate.search(searchQuery, QuestionEsDTO.class);
 
-            Page<Question> page = new Page<>();
-            page.setTotal(searchHits.getTotalHits());
-            List<Question> resourceList = new ArrayList<>();
-          // 构造返回结果
-            if (searchHits.hasSearchHits()) {
-                List<SearchHit<QuestionEsDTO>> searchHitList = searchHits.getSearchHits();
-               searchHitList.forEach(searchHit -> {
-                   resourceList.add(QuestionEsDTO.dtoToObj(searchHit.getContent()));
-                });
+               Page<Question> page = new Page<>();
+               page.setTotal(searchHits.getTotalHits());
+               List<Question> resourceList = new ArrayList<>();
+               // 构造返回结果
+               if (searchHits.hasSearchHits()) {
+                   List<SearchHit<QuestionEsDTO>> searchHitList = searchHits.getSearchHits();
+                   searchHitList.forEach(searchHit -> {
+                       resourceList.add(QuestionEsDTO.dtoToObj(searchHit.getContent()));
+                   });
+               }
+               page.setRecords(resourceList);
+               return page;
+
+    }
+
+    /**
+     * Sentinel blockHandler 方法
+     * 当 searchFromEs 资源被流控或熔断时调用此方法。
+     * @param request
+     * @param ex
+     * @return
+     */
+    public Page<Question> handleSearchBlock(QuestionQueryRequest request, BlockException ex) {
+        log.warn("Sentinel blocked the request for searchFromEs. Falling back.", ex);
+        // Case 1: 如果是流控异常 (FlowException)，说明系统访问量过大
+        // 策略：快速失败，直接返回“系统繁忙”提示，不降级到数据库，避免压力传导。
+        if (ex instanceof FlowException) {
+            throw new BusinessException(ErrorCode.TOO_MANY_REQUEST);
+        }
+
+        // Case 2: 如果是熔断降级异常 (DegradeException)，说明 ES 服务本身出现问题
+        // 策略：执行降级逻辑，尝试从数据库查询。
+        if (ex instanceof DegradeException) {
+            return finalFallback(request);
+        }
+
+        // 其他 BlockException (如系统负载保护、权限不通过等)，默认也进行快速失败处理
+        throw new BusinessException(ErrorCode.SYSTEM_ERROR, "请求被限制，请稍后重试");
+    }
+
+    /**
+     * Sentinel fallback 方法
+     * 当 searchFromEs 方法内部抛出任何未被捕获的异常时调用此方法。
+     * @param request
+     * @param t
+     * @return
+     */
+    public Page<Question> handleSearchFallback(QuestionQueryRequest request, Throwable t) {
+        log.error("Exception in searchFromEs, Sentinel fallback triggered.", t);
+        // 查询ES出异常统一走最终降级逻辑
+        return finalFallback(request);
+    }
+
+    /**
+     * 统一的、健壮的降级方法。
+     * 它首先尝试从数据库查询，如果数据库也失败，则返回一个安全的空结果。
+     * @param request
+     * @return
+     */
+    private Page<Question> finalFallback(QuestionQueryRequest request) {
+        try {
+            log.info("Executing fallback: trying to search from database.");
+            return searchFromDb(request);
+        } catch (Exception dbException) {
+            log.error("Database search also failed during fallback. Returning empty result.", dbException);
+            // 最终兜底策略：返回一个空的分页对象，保证接口不会异常，对前端友好。
+            Page<Question> emptyPage = new Page<>(request.getCurrent(), request.getPageSize(), 0);
+            emptyPage.setRecords(Collections.emptyList());
+            return emptyPage;
+        }
+    }
+
+
+    @Override
+    public List<QuestionVO> getRecommendations(long id) {
+        // 1. 定义用于相似度计算的字段
+        // 我们希望根据题目的标题、内容和标签来查找相似项
+        // String[] fields = {"title", "content", "tags"};
+        // 关键优化：根据反馈，移除 content 字段，仅根据题目的标题和标签来查找相似项，以提高推荐的精准度
+        String[] fields = {"title", "tags"};
+
+        // 2. 创建 MoreLikeThisQueryBuilder
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery(
+                        fields, // 用于比较的字段
+                        null,   // likeTexts, 这里我们不用原始文本，而是用已存在的文档
+                        new MoreLikeThisQueryBuilder.Item[]{
+                                // 指定示例文档，index为别名"question"，id为当前题目ID
+                                new MoreLikeThisQueryBuilder.Item("question", String.valueOf(id))
+                        }
+                )
+                .minTermFreq(1) // 词条在示例文档中至少出现1次
+                .minDocFreq(1)  // 词条在索引中至少出现在1个文档中
+                .maxQueryTerms(12); // 最多使用12个词条来生成查询
+
+        // 3. 构建布尔查询，组合 MLT 查询并排除自身
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
+                .must(moreLikeThisQueryBuilder) // 必须满足 MLT 的相似度条件
+                .mustNot(QueryBuilders.termQuery("id", id)); // 必须不是当前题目自身
+
+        // 4. 构建最终的 NativeSearchQuery
+        NativeSearchQuery searchQuery = new NativeSearchQueryBuilder()
+                .withQuery(boolQueryBuilder)
+                .withPageable(org.springframework.data.domain.PageRequest.of(0, 10)) // 获取前10条推荐
+                .build();
+
+        // 5. 执行查询
+        SearchHits<QuestionEsDTO> searchHits = elasticsearchRestTemplate.search(searchQuery, QuestionEsDTO.class);
+
+        // 6. 处理并返回结果
+        // 此处为了简化，直接返回了 Question 对象，您可以按需转换为 QuestionVO
+        return searchHits.getSearchHits().stream()
+                .map(SearchHit::getContent)
+                .map(QuestionEsDTO::dtoToObj)
+                .map(
+                    QuestionVO::objToVo
+                ).collect(Collectors.toList());
+    }
+
+    /*
+    获取搜索建议
+     */
+    @Override
+    public List<String> getSuggestions(String prefix) {
+        String suggestionName = "question_title_suggestion";
+
+        // 注意：这里查询的字段名是 DTO 中的字段名 "titleSuggest"
+        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("titleSuggest")
+                .prefix(prefix)
+                .size(10);
+
+        SuggestBuilder suggestBuilder = new SuggestBuilder().addSuggestion(suggestionName, suggestionBuilder);
+
+        NativeSearchQuery searchQuery = new NativeSearchQueryBuilder()
+                .withSuggestBuilder(suggestBuilder)
+                .build();
+
+        SearchHits<QuestionEsDTO> searchHits = elasticsearchRestTemplate.search(searchQuery, QuestionEsDTO.class);
+
+        List<String> suggestionList = new ArrayList<>();
+        Suggest suggest = searchHits.getSuggest();
+        if (suggest != null) {
+            // 关键改动：直接处理返回的原始 Suggest.Suggestion 对象
+            Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestionResult =
+                    suggest.getSuggestion(suggestionName);
+            if (suggestionResult != null) {
+                for (Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option> entry : suggestionResult.getEntries()) {
+                    for (Suggest.Suggestion.Entry.Option option : entry.getOptions()) {
+                        suggestionList.add(option.getText());
+                    }
+                }
             }
-            page.setRecords(resourceList);
-            return page;
+        }
+        return suggestionList;
     }
 
     /**
@@ -337,4 +505,5 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         questionBankQuestionService.remove(new LambdaQueryWrapper<QuestionBankQuestion>()
                 .in(QuestionBankQuestion::getQuestionId, questionIdList));
     }
+
 }

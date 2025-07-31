@@ -7,9 +7,11 @@ import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.elasticsearch.annotations.CompletionField;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
+import org.springframework.data.elasticsearch.core.suggest.Completion;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -38,6 +40,12 @@ public class QuestionEsDTO implements Serializable {
      * 标题
      */
     private String title;
+
+    /**
+     * 标题的搜索建议字段
+     */
+    @CompletionField(analyzer = "ik_max_word", searchAnalyzer = "ik_smart", maxInputLength = 100)
+    private Completion titleSuggest;
 
     /**
      * 内容
@@ -100,6 +108,8 @@ public class QuestionEsDTO implements Serializable {
         if (StringUtils.isNotBlank(tagsStr)) {
             questionEsDTO.setTags(JSONUtil.toList(JSONUtil.parseArray(tagsStr), String.class));
         }
+        // 在转换时，为 titleSuggest 字段填充数据
+        questionEsDTO.setTitleSuggest(new Completion(new String[]{question.getTitle()}));
         return questionEsDTO;
     }
 

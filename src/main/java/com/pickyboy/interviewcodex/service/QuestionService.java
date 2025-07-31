@@ -60,6 +60,7 @@ public interface QuestionService extends IService<Question> {
      */
     Page<Question> listQuestionByPage(QuestionQueryRequest questionQueryRequest) ;
 
+
     /**
      * 从 ES 查询题目
      *
@@ -74,4 +75,12 @@ public interface QuestionService extends IService<Question> {
      */
     void batchDeleteQuestions(List<Long> questionIdList);
 
+    /**
+     * 获取题目建议
+     * @param prefix
+     * @return
+     */
+    List<String> getSuggestions(String prefix);
+
+    List<QuestionVO> getRecommendations(long id);
 }

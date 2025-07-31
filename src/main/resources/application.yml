@@ -162,6 +162,9 @@ nacos:
     group: DEFAULT_GROUP
     type: yaml
     auto-refresh: true
+    context-path:
+      exclude:
+        - com.alibaba.druid.spring.boot.autoconfigure.DruidDataSourceAutoConfigure
 # Sa-Token
 sa-token:
 #  token 名

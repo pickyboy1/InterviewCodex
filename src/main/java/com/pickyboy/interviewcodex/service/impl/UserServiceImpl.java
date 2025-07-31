@@ -241,6 +241,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return true;
     }
 
+    // region 实体类转vo方法
     @Override
     public LoginUserVO getLoginUserVO(User user) {
         if (user == null) {
@@ -269,6 +270,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return userList.stream().map(this::getUserVO).collect(Collectors.toList());
     }
 
+    // endregion
+
     @Override
     public QueryWrapper<User> getQueryWrapper(UserQueryRequest userQueryRequest) {
         if (userQueryRequest == null) {
@@ -294,6 +297,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return queryWrapper;
     }
 
+    /**
+     * 用户签到
+     * @param userId
+     * @return
+     */
+    // todo: 最好加上分布式锁,如果需要根据签到是否成功发放积分等,不加锁会导致重复发放
     @Override
     public boolean addUserSignIn(long userId) {
         LocalDate date = LocalDate.now();

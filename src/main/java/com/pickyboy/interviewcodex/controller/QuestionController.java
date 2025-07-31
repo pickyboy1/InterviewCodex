@@ -61,7 +61,11 @@ public class QuestionController {
     @Resource
     private QuestionBankQuestionService questionBankQuestionService;
 
-    // region 增删改查
+    // Redis原子化计数工具
+    @Resource
+    private CounterManager counterManager;
+
+    // region 基础增删改查
 
     /**
      * 创建题目
@@ -74,7 +78,7 @@ public class QuestionController {
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Long> addQuestion(@RequestBody QuestionAddRequest questionAddRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(questionAddRequest == null, ErrorCode.PARAMS_ERROR);
-        // todo 在此处将实体类和 DTO 进行转换
+        // 将实体类和 DTO 进行转换
         Question question = new Question();
         BeanUtils.copyProperties(questionAddRequest, question);
         List<String> tags = questionAddRequest.getTags();
@@ -83,7 +87,7 @@ public class QuestionController {
         }
         // 数据校验
         questionService.validQuestion(question, true);
-        // todo 填充默认值
+        // 填充默认值
         User loginUser = userService.getLoginUser(request);
         question.setUserId(loginUser.getId());
         // 写入数据库
@@ -134,7 +138,7 @@ public class QuestionController {
         if (questionUpdateRequest == null || questionUpdateRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // todo 在此处将实体类和 DTO 进行转换
+        //  在此处将实体类和 DTO 进行转换
         Question question = new Question();
         BeanUtils.copyProperties(questionUpdateRequest, question);
         List<String> tags = questionUpdateRequest.getTags();
@@ -153,14 +157,50 @@ public class QuestionController {
         return ResultUtils.success(true);
     }
 
-    @Resource
-    private CounterManager counterManager;
+    /**
+     * 编辑题目（给用户使用）
+     *
+     * @param questionEditRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/edit")
+    public BaseResponse<Boolean> editQuestion(@RequestBody QuestionEditRequest questionEditRequest, HttpServletRequest request) {
+        if (questionEditRequest == null || questionEditRequest.getId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 在此处将实体类和 DTO 进行转换
+        Question question = new Question();
+        BeanUtils.copyProperties(questionEditRequest, question);
+        List<String> tags = questionEditRequest.getTags();
+        if (tags != null) {
+            question.setTags(JSONUtil.toJsonStr(tags));
+        }
+        // 数据校验
+        questionService.validQuestion(question, false);
+        User loginUser = userService.getLoginUser(request);
+        // 判断是否存在
+        long id = questionEditRequest.getId();
+        Question oldQuestion = questionService.getById(id);
+        ThrowUtils.throwIf(oldQuestion == null, ErrorCode.NOT_FOUND_ERROR);
+        // 仅本人或管理员可编辑
+        if (!oldQuestion.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
+        // 操作数据库
+        boolean result = questionService.updateById(question);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        return ResultUtils.success(true);
+    }
+
+    // endregion
 
     /**
      * 判断检测爬虫方法
      * 使用redis计数器,判断一定时间内的访问次数
      * @param loginUserId
      */
+    // todo: 扩展,key设为id + 业务名,对更多业务控制
     private void crawlerDetect(long loginUserId){
         final int WARN_COUNT = 10;
         final int BAN_COUNT = 20;
@@ -207,6 +247,7 @@ public class QuestionController {
      * @param questionQueryRequest
      * @return
      */
+    // todo: 管理员也可以接入Es进行搜索
     @PostMapping("/list/page")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Page<Question>> listQuestionByPage(@RequestBody QuestionQueryRequest questionQueryRequest) {
@@ -216,7 +257,7 @@ public class QuestionController {
     }
 
     /**
-     * 分页获取题目列表（封装类）
+     * 分页搜索题目列表（封装类）普通搜索
      *
      * @param questionQueryRequest
      * @param request
@@ -280,6 +321,7 @@ public class QuestionController {
         }
     }
 
+    // 降级策略,直接返回空
     public BaseResponse<Page<QuestionVO>> handleFallback(QuestionQueryRequest questionQueryRequest,
                                                                    HttpServletRequest request, Throwable ex) {
         return ResultUtils.success( null);
@@ -310,44 +352,9 @@ public class QuestionController {
         return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
     }
 
-    /**
-     * 编辑题目（给用户使用）
-     *
-     * @param questionEditRequest
-     * @param request
-     * @return
-     */
-    @PostMapping("/edit")
-    @SaCheckRole(UserConstant.ADMIN_ROLE)
-    public BaseResponse<Boolean> editQuestion(@RequestBody QuestionEditRequest questionEditRequest, HttpServletRequest request) {
-        if (questionEditRequest == null || questionEditRequest.getId() <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        // todo 在此处将实体类和 DTO 进行转换
-        Question question = new Question();
-        BeanUtils.copyProperties(questionEditRequest, question);
-        List<String> tags = questionEditRequest.getTags();
-        if (tags != null) {
-            question.setTags(JSONUtil.toJsonStr(tags));
-        }
-        // 数据校验
-        questionService.validQuestion(question, false);
-        User loginUser = userService.getLoginUser(request);
-        // 判断是否存在
-        long id = questionEditRequest.getId();
-        Question oldQuestion = questionService.getById(id);
-        ThrowUtils.throwIf(oldQuestion == null, ErrorCode.NOT_FOUND_ERROR);
-        // 仅本人或管理员可编辑
-        if (!oldQuestion.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
-        // 操作数据库
-        boolean result = questionService.updateById(question);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        return ResultUtils.success(true);
-    }
 
-    // endregion
+
+
     /*
     *  es搜索题目
     * */
@@ -362,6 +369,18 @@ public class QuestionController {
     }
 
     /**
+     * 根据题目ID获取相关推荐题目
+     *
+     * @param id 当前题目的ID
+     * @return
+     */
+    @GetMapping("/recommend")
+    public BaseResponse<List<QuestionVO>> getRecommendations(@RequestParam long id) {
+        List<QuestionVO> recommendations = questionService.getRecommendations(id);
+        return ResultUtils.success(recommendations);
+    }
+
+    /**
      * 批量删除题目(及对应关联关系)
      */
     @PostMapping("/delete/batch")
@@ -371,4 +390,9 @@ public class QuestionController {
         questionService.batchDeleteQuestions(questionBatchDeleteRequest.getQuestionIdList());
         return ResultUtils.success(true);
     }
+
+    // todo: 可以添加批量添加题目接口,用于AI生成题目的添加
+
+
+
 }

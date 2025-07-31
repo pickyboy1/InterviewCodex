@@ -53,14 +53,15 @@ public class QuestionBankQuestionController {
      * @return
      */
     @PostMapping("/add")
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Long> addQuestionBankQuestion(@RequestBody QuestionBankQuestionAddRequest questionBankQuestionAddRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(questionBankQuestionAddRequest == null, ErrorCode.PARAMS_ERROR);
-        // todo 在此处将实体类和 DTO 进行转换
+        // 在此处将实体类和 DTO 进行转换
         QuestionBankQuestion questionBankQuestion = new QuestionBankQuestion();
         BeanUtils.copyProperties(questionBankQuestionAddRequest, questionBankQuestion);
         // 数据校验
         questionBankQuestionService.validQuestionBankQuestion(questionBankQuestion, true);
-        // todo 填充默认值
+        // 填充默认值
         User loginUser = userService.getLoginUser(request);
         questionBankQuestion.setUserId(loginUser.getId());
         // 写入数据库
@@ -79,6 +80,7 @@ public class QuestionBankQuestionController {
      * @return
      */
     @PostMapping("/delete")
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> deleteQuestionBankQuestion(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -110,7 +112,7 @@ public class QuestionBankQuestionController {
         if (questionBankQuestionUpdateRequest == null || questionBankQuestionUpdateRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // todo 在此处将实体类和 DTO 进行转换
+        // 在此处将实体类和 DTO 进行转换
         QuestionBankQuestion questionBankQuestion = new QuestionBankQuestion();
         BeanUtils.copyProperties(questionBankQuestionUpdateRequest, questionBankQuestion);
         // 数据校验
@@ -158,26 +160,7 @@ public class QuestionBankQuestionController {
         return ResultUtils.success(questionBankQuestionPage);
     }
 
-    /**
-     * 分页获取题库题目关联列表（封装类）
-     *
-     * @param questionBankQuestionQueryRequest
-     * @param request
-     * @return
-     */
-    @PostMapping("/list/page/vo")
-    public BaseResponse<Page<QuestionBankQuestionVO>> listQuestionBankQuestionVOByPage(@RequestBody QuestionBankQuestionQueryRequest questionBankQuestionQueryRequest,
-                                                               HttpServletRequest request) {
-        long current = questionBankQuestionQueryRequest.getCurrent();
-        long size = questionBankQuestionQueryRequest.getPageSize();
-        // 限制爬虫
-        ThrowUtils.throwIf(size > 200, ErrorCode.PARAMS_ERROR);
-        // 查询数据库
-        Page<QuestionBankQuestion> questionBankQuestionPage = questionBankQuestionService.page(new Page<>(current, size),
-                questionBankQuestionService.getQueryWrapper(questionBankQuestionQueryRequest));
-        // 获取封装类
-        return ResultUtils.success(questionBankQuestionService.getQuestionBankQuestionVOPage(questionBankQuestionPage, request));
-    }
+
 
     /**
      * 分页获取当前登录用户创建的题库题目关联列表
@@ -204,15 +187,15 @@ public class QuestionBankQuestionController {
         return ResultUtils.success(questionBankQuestionService.getQuestionBankQuestionVOPage(questionBankQuestionPage, request));
     }
 
-    // endregion
     /**
-     * 删除题库题目关联
+     * 删除题库题目关联(根据题库和题目id移除)
      *
      * @param removeRequest
      * @param
      * @return
      */
     @PostMapping("/remove")
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> removeQuestionBankQuestion(
             @RequestBody QuestionBankQuestionRemoveRequest removeRequest) {
         if (removeRequest == null || removeRequest.getQuestionId() <= 0|| removeRequest.getQuestionBankId() <= 0) {
@@ -225,6 +208,30 @@ public class QuestionBankQuestionController {
                 eq(QuestionBankQuestion::getQuestionBankId, questionBankId).eq(QuestionBankQuestion::getQuestionId, questionId));
 
         return ResultUtils.success(true);
+    }
+
+    // endregion
+
+    /**
+     * 分页获取题库题目关联列表（封装类）
+     *
+     * @param questionBankQuestionQueryRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/list/page/vo")
+    public BaseResponse<Page<QuestionBankQuestionVO>> listQuestionBankQuestionVOByPage(@RequestBody QuestionBankQuestionQueryRequest questionBankQuestionQueryRequest,
+                                                                                       HttpServletRequest request) {
+        long current = questionBankQuestionQueryRequest.getCurrent();
+        long size = questionBankQuestionQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 200, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        // 查询出关联关系
+        Page<QuestionBankQuestion> questionBankQuestionPage = questionBankQuestionService.page(new Page<>(current, size),
+                questionBankQuestionService.getQueryWrapper(questionBankQuestionQueryRequest));
+        // 通过关联关系获取题库信息,题目信息
+        return ResultUtils.success(questionBankQuestionService.getQuestionBankQuestionVOPage(questionBankQuestionPage, request));
     }
 
     /**

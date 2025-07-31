@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
  *
  */
     // 单次任务执行
-/*@Component
+//@Component
 @Slf4j
 public class FullSyncQuestionToEs implements CommandLineRunner {
 
@@ -48,4 +48,4 @@ public class FullSyncQuestionToEs implements CommandLineRunner {
         }
         log.info("FullSyncQuestionToEs end, total {}", total);
     }
-}*/
+}

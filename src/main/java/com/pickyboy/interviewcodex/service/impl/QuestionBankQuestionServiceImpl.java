@@ -106,7 +106,7 @@ public class QuestionBankQuestionServiceImpl extends ServiceImpl<QuestionBankQue
         if (questionBankQuestionQueryRequest == null) {
             return queryWrapper;
         }
-        // todo 从对象中取值
+        //  从对象中取值
         Long id = questionBankQuestionQueryRequest.getId();
         Long notId = questionBankQuestionQueryRequest.getNotId();
         String sortField = questionBankQuestionQueryRequest.getSortField();
@@ -114,7 +114,7 @@ public class QuestionBankQuestionServiceImpl extends ServiceImpl<QuestionBankQue
         Long questionBankId = questionBankQuestionQueryRequest.getQuestionBankId();
         Long questionId = questionBankQuestionQueryRequest.getQuestionId();
         Long userId = questionBankQuestionQueryRequest.getUserId();
-        // todo 补充需要的查询条件
+        // 补充需要的查询条件
 
         // 模糊查询
 
@@ -145,7 +145,7 @@ public class QuestionBankQuestionServiceImpl extends ServiceImpl<QuestionBankQue
         // 对象转封装类
         QuestionBankQuestionVO questionBankQuestionVO = QuestionBankQuestionVO.objToVo(questionBankQuestion);
 
-        // todo 可以根据需要为封装对象补充值，不需要的内容可以删除
+        //  可以根据需要为封装对象补充值，不需要的内容可以删除
         // region 可选
         // 1. 关联查询用户信息
         Long userId = questionBankQuestion.getUserId();
@@ -180,7 +180,7 @@ public class QuestionBankQuestionServiceImpl extends ServiceImpl<QuestionBankQue
             return QuestionBankQuestionVO.objToVo(questionBankQuestion);
         }).collect(Collectors.toList());
 
-        // todo 可以根据需要为封装对象补充值，不需要的内容可以删除
+        //  可以根据需要为封装对象补充值，不需要的内容可以删除
         // region 可选
         // 1. 关联查询用户信息
         Set<Long> userIdSet = questionBankQuestionList.stream().map(QuestionBankQuestion::getUserId).collect(Collectors.toSet());
