@@ -158,6 +158,7 @@ public class QuestionController {
 
     /**
      * 判断检测爬虫方法
+     * 使用redis计数器,判断一定时间内的访问次数
      * @param loginUserId
      */
     private void crawlerDetect(long loginUserId){

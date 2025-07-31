@@ -2,6 +2,7 @@ package com.pickyboy.interviewcodex.service.impl;
 
 import static com.pickyboy.interviewcodex.constant.UserConstant.USER_LOGIN_STATE;
 
+import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -180,6 +181,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (currentUser == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
+        // 也可以直接取
+       //  Object o = StpUtil.getSessionByLoginId(userId, true).get(USER_LOGIN_STATE);
         return currentUser;
     }
 

@@ -18,9 +18,8 @@ import java.util.stream.Collectors;
  * 全量题目帖子到 es
  *
  */
-// todo 取消注释开启任务
     // 单次任务执行
-@Component
+/*@Component
 @Slf4j
 public class FullSyncQuestionToEs implements CommandLineRunner {
 
@@ -49,4 +48,4 @@ public class FullSyncQuestionToEs implements CommandLineRunner {
         }
         log.info("FullSyncQuestionToEs end, total {}", total);
     }
-}
+}*/
