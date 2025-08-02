@@ -375,11 +375,69 @@ class CacheSystemTest {
         System.out.println("缓存一致性测试通过");
     }
 
-    @Test
+        @Test
     @Order(10)
+    @DisplayName("测试缓存穿透防护")
+    void testCachePenetrationProtection() {
+        // 测试不存在的ID，应该缓存null值
+        Long nonExistentId = 999999L;
+
+        // 第一次查询不存在的数据
+        QuestionVO nullResult1 = questionService.getCacheQuestionVO(nonExistentId);
+        assertNull(nullResult1);
+
+        // 验证空值被缓存
+        String cacheKey = "question_detail::" + nonExistentId;
+        assertTrue(redissonClient.getBucket(cacheKey).isExists());
+
+        // 第二次查询，应该从缓存获取空值
+        QuestionVO nullResult2 = questionService.getCacheQuestionVO(nonExistentId);
+        assertNull(nullResult2);
+
+        System.out.println("缓存穿透防护测试通过");
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("测试缓存击穿防护")
+    void testCacheBreakdownProtection() throws Exception {
+        // 清除可能存在的缓存
+        String cacheKey = "question_detail::" + testQuestionId;
+        redissonClient.getBucket(cacheKey).delete();
+
+        // 模拟大量并发请求同一个key
+        int threadCount = 20;
+        CompletableFuture<QuestionVO>[] futures = new CompletableFuture[threadCount];
+
+        for (int i = 0; i < threadCount; i++) {
+            futures[i] = CompletableFuture.supplyAsync(() ->
+                questionService.getCacheQuestionVO(testQuestionId));
+        }
+
+        // 等待所有线程完成
+        CompletableFuture.allOf(futures).get(10, TimeUnit.SECONDS);
+
+        // 验证所有结果一致
+        QuestionVO firstResult = futures[0].get();
+        assertNotNull(firstResult);
+
+        for (int i = 1; i < threadCount; i++) {
+            QuestionVO result = futures[i].get();
+            assertNotNull(result);
+            assertEquals(firstResult.getId(), result.getId());
+            assertEquals(firstResult.getTitle(), result.getTitle());
+        }
+
+        // 验证缓存已被设置
+        assertTrue(redissonClient.getBucket(cacheKey).isExists());
+
+        System.out.println("缓存击穿防护测试通过");
+    }
+
+    @Test
+    @Order(12)
     @DisplayName("测试缓存边界情况")
     void testCacheEdgeCases() {
-
         // 测试空列表缓存清除（不应该抛异常）
         assertDoesNotThrow(() -> {
             cacheUtils.batchEvictCache("test_scene", null);

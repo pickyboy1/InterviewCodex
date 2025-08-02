@@ -460,9 +460,12 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     @Override
     @AutoCache(scene = "question_detail",keyExpression = "#id")
     public QuestionVO getCacheQuestionVO(long id) {
-// 1. 核心数据查询
+        // 1. 核心数据查询
         Question question = this.getById(id);
-        ThrowUtils.throwIf(question == null, ErrorCode.NOT_FOUND_ERROR);
+        // 如果题目不存在，返回null，让缓存穿透防护机制处理
+        if (question == null) {
+            return null;
+        }
 
         // 2. 转换为 VO 并填充关联信息
         QuestionVO questionVO = QuestionVO.objToVo(question);

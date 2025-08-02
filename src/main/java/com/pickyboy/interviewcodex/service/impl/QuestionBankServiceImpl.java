@@ -89,7 +89,7 @@ public class QuestionBankServiceImpl
         if (questionBankQueryRequest == null) {
             return queryWrapper;
         }
-        
+
         Long id = questionBankQueryRequest.getId();
         Long notId = questionBankQueryRequest.getNotId();
         String searchText = questionBankQueryRequest.getSearchText();
@@ -163,7 +163,11 @@ public class QuestionBankServiceImpl
     @AutoCache(scene = "bank_detail", keyExpression = "#id + '_' + #needList")
     public QuestionBankVO getCachedQuestionBankVO(Long id, boolean needList) {
         QuestionBank questionBank = getById(id);
-        ThrowUtils.throwIf(questionBank == null, ErrorCode.NOT_FOUND_ERROR);
+        // 如果题库不存在，返回null，让缓存穿透防护机制处理
+        if (questionBank == null) {
+            return null;
+        }
+
         // 2. 基础对象转换
         QuestionBankVO questionBankVO = QuestionBankVO.objToVo(questionBank);
 
