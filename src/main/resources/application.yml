@@ -126,7 +126,7 @@ spring:
             username: nacos
             password: nacos
             server-addr: localhost:8848
-            data-id: ${spring.application.name}-rules.json # Nacos 中的配置 ID
+            data-id: ${spring.application.name}-rules # Nacos 中的配置 ID
             rule-type: flow
             data-type: json
 

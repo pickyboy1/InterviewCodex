@@ -19,6 +19,14 @@ import com.pickyboy.interviewcodex.model.entity.User;
 import com.pickyboy.interviewcodex.model.vo.LoginUserVO;
 import com.pickyboy.interviewcodex.model.vo.UserVO;
 import com.pickyboy.interviewcodex.service.UserService;
+import com.pickyboy.interviewcodex.utils.NetUtils;
+import com.alibaba.csp.sentinel.Entry;
+import com.alibaba.csp.sentinel.EntryType;
+import com.alibaba.csp.sentinel.SphU;
+import com.alibaba.csp.sentinel.Tracer;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
+import com.alibaba.csp.sentinel.slots.block.flow.param.ParamFlowException;
 
 import java.util.List;
 import javax.annotation.Resource;
@@ -55,28 +63,59 @@ public class UserController {
     // region 登录相关
 
     /**
-     * 用户注册
+     * 用户注册（防刷保护）
      *
      * @param userRegisterRequest
+     * @param request
      * @return
      */
     @PostMapping("/register")
-    public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
+    public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest, HttpServletRequest request) {
         if (userRegisterRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        String userAccount = userRegisterRequest.getUserAccount();
-        String userPassword = userRegisterRequest.getUserPassword();
-        String checkPassword = userRegisterRequest.getCheckPassword();
-        if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
-            return null;
+
+        // 获取客户端IP地址
+        String clientIp = NetUtils.getIpAddress(request);
+        Entry entry = null;
+
+        try {
+            // 基于IP的参数限流保护：1分钟内最多30次注册请求
+            entry = SphU.entry("userRegister", EntryType.IN, 1, clientIp);
+
+            // 执行注册逻辑
+            String userAccount = userRegisterRequest.getUserAccount();
+            String userPassword = userRegisterRequest.getUserPassword();
+            String checkPassword = userRegisterRequest.getCheckPassword();
+            if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR);
+            }
+
+            long result = userService.userRegister(userAccount, userPassword, checkPassword);
+            return ResultUtils.success(result);
+
+                } catch (Throwable e) {
+                    // 判断是否为 Sentinel 的限流/降级异常
+                    if (BlockException.isBlockException(e)) {
+                        // 是的，这是 BlockException
+                        log.warn("用户登录请求被限流，IP: {}", clientIp);
+                        return ResultUtils.error(ErrorCode.TOO_MANY_REQUEST, "请求过于频繁，请稍后再试");
+                    } else {
+                        // 不是，这是普通的业务异常
+                        // 将业务异常上报给 Sentinel，用于熔断降级（异常比例/异常数）的统计
+                        Tracer.trace(e);
+                        // 将原始异常继续向上抛出，由全局异常处理器处理
+                        throw new BusinessException(ErrorCode.SYSTEM_ERROR, e.getMessage());
+                    }
+                } finally {
+            if (entry != null) {
+                entry.exit(1, clientIp);
+            }
         }
-        long result = userService.userRegister(userAccount, userPassword, checkPassword);
-        return ResultUtils.success(result);
     }
 
     /**
-     * 用户登录
+     * 用户登录（防刷、防爆破保护）
      *
      * @param userLoginRequest
      * @param request
@@ -87,13 +126,43 @@ public class UserController {
         if (userLoginRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        String userAccount = userLoginRequest.getUserAccount();
-        String userPassword = userLoginRequest.getUserPassword();
-        if (StringUtils.isAnyBlank(userAccount, userPassword)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+
+        // 获取客户端IP地址
+        String clientIp = NetUtils.getIpAddress(request);
+        Entry entry = null;
+
+        try {
+            // 基于IP的参数限流保护：1分钟内最多30次登录请求，防止暴力破解
+            entry = SphU.entry("userLogin", EntryType.IN, 1, clientIp);
+
+            // 执行登录逻辑
+            String userAccount = userLoginRequest.getUserAccount();
+            String userPassword = userLoginRequest.getUserPassword();
+            if (StringUtils.isAnyBlank(userAccount, userPassword)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR);
+            }
+
+            LoginUserVO loginUserVO = userService.userLogin(userAccount, userPassword, request);
+            return ResultUtils.success(loginUserVO);
+
+        } catch (Throwable e) {
+            // 判断是否为 Sentinel 的限流/降级异常
+            if (BlockException.isBlockException(e)) {
+                // 是的，这是 BlockException
+                log.warn("用户登录请求被限流，IP: {}", clientIp);
+                return ResultUtils.error(ErrorCode.TOO_MANY_REQUEST, "请求过于频繁，请稍后再试");
+            } else {
+                // 不是，这是普通的业务异常
+                // 将业务异常上报给 Sentinel，用于熔断降级（异常比例/异常数）的统计
+                Tracer.trace(e);
+                // 将原始异常继续向上抛出，由全局异常处理器处理
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, e.getMessage());
+            }
+        } finally {
+            if (entry != null) {
+                entry.exit(1, clientIp);
+            }
         }
-        LoginUserVO loginUserVO = userService.userLogin(userAccount, userPassword, request);
-        return ResultUtils.success(loginUserVO);
     }
 
     /**

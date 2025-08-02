@@ -57,8 +57,7 @@ import java.util.stream.Collectors;
 /**
  * 题目服务实现
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://www.code-nav.cn">编程导航学习圈</a>
+ * @author PickyBoy
  */
 @Service
 @Slf4j
@@ -253,110 +252,169 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     }
 
 
+    @Override
+    @AutoCache(scene = "question_detail", keyExpression = "#id", randomExpireRange = 60)
+    public QuestionVO getCacheQuestionVO(long id) {
+        // 1. 核心数据查询
+        Question question = this.getById(id);
+        // 如果题目不存在，返回null，让缓存穿透防护机制处理
+        if (question == null) {
+            return null;
+        }
+
+        // 2. 转换为 VO 并填充关联信息
+        QuestionVO questionVO = QuestionVO.objToVo(question);
+        User user = userService.getById(question.getUserId());
+        questionVO.setUser(userService.getUserVO(user));
+
+        return questionVO;
+    }
+
+    // region 带清理缓存的方法
+    @Override
+    @CacheEvict(scene = "question_detail", keyExpression = "#id")
+    public boolean deleteQuestionWithCache(Long id) {
+        return this.removeById(id);
+    }
+
+    @Override
+    @CacheEvict(scene = "question_detail", keyExpression = "#question.id")
+    public boolean updateQuestionWithCache(Question question) {
+        return this.updateById(question);
+    }
+
+    @Override
+    @CacheEvict(scene = "question_detail", keyExpression = "#questionIdList", isBatch = true)
+    public void batchDeleteQuestionsWithCache(List<Long> questionIdList) {
+        this.batchDeleteQuestions(questionIdList);
+    }
+
+    // endregion
+
+
+    /**
+     * 批量删除题目
+     * @param questionIdList
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(scene = "question_detail", keyExpression = "#questionIdList", isBatch = true)
+    public void batchDeleteQuestions(List<Long> questionIdList) {
+        ThrowUtils.throwIf(CollUtil.isEmpty(questionIdList), ErrorCode.PARAMS_ERROR,"题目列表不能为空");
+        boolean result = this.removeBatchByIds(questionIdList);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "批量删除题目失败");
+        // 移除关联关系
+        questionBankQuestionService.remove(new LambdaQueryWrapper<QuestionBankQuestion>()
+                .in(QuestionBankQuestion::getQuestionId, questionIdList));
+    }
+
+    // region 搜索相关方法
     /**
      * 从数据库分页搜索
+     *
      * @param questionQueryRequest
      * @return
      */
     private Page<Question> searchFromDb(QuestionQueryRequest questionQueryRequest) {
         QueryWrapper<Question> wrapper = getQueryWrapper(questionQueryRequest);
-        Page<Question> page = page(new Page<>(questionQueryRequest.getCurrent(), questionQueryRequest.getPageSize()
-        ),wrapper);
+        Page<Question> page = page(new Page<>(questionQueryRequest.getCurrent(), questionQueryRequest.getPageSize()),
+                wrapper);
         return page;
     }
 
     /**
-     * 通过ES搜索题目列表
+     * 通过ES搜索题目列表,多级降级策略
+     *
      * @param questionQueryRequest
      * @return
      */
     @Override
-    @SentinelResource(
-            value = "searchFromEs", // 资源名，在 Sentinel 控制台配置规则时使用
+    @SentinelResource(value = "searchFromEs", // 资源名，在 Sentinel 控制台配置规则时使用
             blockHandler = "handleSearchBlock", // 指定流控降级后的处理方法
-            fallback = "handleSearchFallback"  // 指定熔断降级后的处理方法
+            fallback = "handleSearchFallback" // 指定熔断降级后的处理方法
     )
     public Page<Question> searchFromEs(QuestionQueryRequest questionQueryRequest) {
 
-            Long id = questionQueryRequest.getId();
-            Long notId = questionQueryRequest.getNotId();
-            String searchText = questionQueryRequest.getSearchText();
-            if(searchText.equals("error")){
-                throw new BusinessException(123,"测试Es错误降级");
+        Long id = questionQueryRequest.getId();
+        Long notId = questionQueryRequest.getNotId();
+        String searchText = questionQueryRequest.getSearchText();
+        if (searchText.equals("error")) {
+            throw new BusinessException(123, "测试Es错误降级");
+        }
+        Long questionBankId = questionQueryRequest.getQuestionBankId();
+        List<String> tagList = questionQueryRequest.getTags();
+        Long userId = questionQueryRequest.getUserId();
+        // es 起始页为 0
+        long current = questionQueryRequest.getCurrent() - 1;
+        long pageSize = questionQueryRequest.getPageSize();
+        String sortField = questionQueryRequest.getSortField();
+        String sortOrder = questionQueryRequest.getSortOrder();
+        // 构造查询条件
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+        // 过滤
+        boolQueryBuilder.filter(QueryBuilders.termQuery("isDelete", 0));
+        if (id != null) {
+            boolQueryBuilder.filter(QueryBuilders.termQuery("id", id));
+        }
+        if (notId != null) {
+            boolQueryBuilder.mustNot(QueryBuilders.termQuery("id", notId));
+        }
+        if (userId != null) {
+            boolQueryBuilder.filter(QueryBuilders.termQuery("userId", userId));
+        }
+        if (questionBankId != null) {
+            boolQueryBuilder.filter(QueryBuilders.termQuery("questionBankId", questionBankId));
+        }
+        // 必须包含所有标签
+        if (CollUtil.isNotEmpty(tagList)) {
+            for (String tag : tagList) {
+                boolQueryBuilder.filter(QueryBuilders.termQuery("tags", tag));
             }
-            Long questionBankId = questionQueryRequest.getQuestionBankId();
-            List<String> tagList = questionQueryRequest.getTags();
-            Long userId = questionQueryRequest.getUserId();
-            // es 起始页为 0
-            long current = questionQueryRequest.getCurrent() - 1;
-            long pageSize = questionQueryRequest.getPageSize();
-            String sortField = questionQueryRequest.getSortField();
-            String sortOrder = questionQueryRequest.getSortOrder();
-            // 构造查询条件
-            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-            // 过滤
-            boolQueryBuilder.filter(QueryBuilders.termQuery("isDelete", 0));
-            if (id != null) {
-                boolQueryBuilder.filter(QueryBuilders.termQuery("id", id));
-            }
-            if (notId != null) {
-                boolQueryBuilder.mustNot(QueryBuilders.termQuery("id", notId));
-            }
-            if (userId != null) {
-                boolQueryBuilder.filter(QueryBuilders.termQuery("userId", userId));
-            }
-            if(questionBankId!= null){
-                boolQueryBuilder.filter(QueryBuilders.termQuery("questionBankId", questionBankId));
-            }
-            // 必须包含所有标签
-            if (CollUtil.isNotEmpty(tagList)) {
-                for (String tag : tagList) {
-                    boolQueryBuilder.filter(QueryBuilders.termQuery("tags", tag));
-                }
-            }
+        }
 
-            // 按关键词检索
-            if (StringUtils.isNotBlank(searchText)) {
-                boolQueryBuilder.should(QueryBuilders.matchQuery("title", searchText));
-                boolQueryBuilder.should(QueryBuilders.matchQuery("description", searchText));
-                boolQueryBuilder.should(QueryBuilders.matchQuery("content", searchText));
-                // 满足一个即可
-                boolQueryBuilder.minimumShouldMatch(1);
-            }
+        // 按关键词检索
+        if (StringUtils.isNotBlank(searchText)) {
+            boolQueryBuilder.should(QueryBuilders.matchQuery("title", searchText));
+            boolQueryBuilder.should(QueryBuilders.matchQuery("description", searchText));
+            boolQueryBuilder.should(QueryBuilders.matchQuery("content", searchText));
+            // 满足一个即可
+            boolQueryBuilder.minimumShouldMatch(1);
+        }
 
-            // 排序
-            SortBuilder<?> sortBuilder = SortBuilders.scoreSort();
-            if (StringUtils.isNotBlank(sortField)) {
-                sortBuilder = SortBuilders.fieldSort(sortField);
-                sortBuilder.order(CommonConstant.SORT_ORDER_ASC.equals(sortOrder) ? SortOrder.ASC : SortOrder.DESC);
-            }
-            // 分页
-            PageRequest pageRequest = PageRequest.of((int) current, (int) pageSize);
+        // 排序
+        SortBuilder<?> sortBuilder = SortBuilders.scoreSort();
+        if (StringUtils.isNotBlank(sortField)) {
+            sortBuilder = SortBuilders.fieldSort(sortField);
+            sortBuilder.order(CommonConstant.SORT_ORDER_ASC.equals(sortOrder) ? SortOrder.ASC : SortOrder.DESC);
+        }
+        // 分页
+        PageRequest pageRequest = PageRequest.of((int) current, (int) pageSize);
 
-            // 构造查询
-            NativeSearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(boolQueryBuilder)
-                    .withPageable(pageRequest).withSorts(sortBuilder).build();
-            // 查询
-               SearchHits<QuestionEsDTO> searchHits = elasticsearchRestTemplate.search(searchQuery, QuestionEsDTO.class);
+        // 构造查询
+        NativeSearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(boolQueryBuilder)
+                .withPageable(pageRequest).withSorts(sortBuilder).build();
+        // 查询
+        SearchHits<QuestionEsDTO> searchHits = elasticsearchRestTemplate.search(searchQuery, QuestionEsDTO.class);
 
-               Page<Question> page = new Page<>();
-               page.setTotal(searchHits.getTotalHits());
-               List<Question> resourceList = new ArrayList<>();
-               // 构造返回结果
-               if (searchHits.hasSearchHits()) {
-                   List<SearchHit<QuestionEsDTO>> searchHitList = searchHits.getSearchHits();
-                   searchHitList.forEach(searchHit -> {
-                       resourceList.add(QuestionEsDTO.dtoToObj(searchHit.getContent()));
-                   });
-               }
-               page.setRecords(resourceList);
-               return page;
+        Page<Question> page = new Page<>();
+        page.setTotal(searchHits.getTotalHits());
+        List<Question> resourceList = new ArrayList<>();
+        // 构造返回结果
+        if (searchHits.hasSearchHits()) {
+            List<SearchHit<QuestionEsDTO>> searchHitList = searchHits.getSearchHits();
+            searchHitList.forEach(searchHit -> {
+                resourceList.add(QuestionEsDTO.dtoToObj(searchHit.getContent()));
+            });
+        }
+        page.setRecords(resourceList);
+        return page;
 
     }
 
     /**
      * Sentinel blockHandler 方法
      * 当 searchFromEs 资源被流控或熔断时调用此方法。
+     *
      * @param request
      * @param ex
      * @return
@@ -382,6 +440,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     /**
      * Sentinel fallback 方法
      * 当 searchFromEs 方法内部抛出任何未被捕获的异常时调用此方法。
+     *
      * @param request
      * @param t
      * @return
@@ -395,6 +454,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     /**
      * 统一的、健壮的降级方法。
      * 它首先尝试从数据库查询，如果数据库也失败，则返回一个安全的空结果。
+     *
      * @param request
      * @return
      */
@@ -411,26 +471,27 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         }
     }
 
-
+    /*
+     * 获取相关题目
+     */
     @Override
     public List<QuestionVO> getRecommendations(long id) {
         // 1. 定义用于相似度计算的字段
         // 我们希望根据题目的标题、内容和标签来查找相似项
         // String[] fields = {"title", "content", "tags"};
         // 关键优化：根据反馈，移除 content 字段，仅根据题目的标题和标签来查找相似项，以提高推荐的精准度
-        String[] fields = {"title", "tags"};
+        String[] fields = { "title", "tags" };
 
         // 2. 创建 MoreLikeThisQueryBuilder
         MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery(
-                        fields, // 用于比较的字段
-                        null,   // likeTexts, 这里我们不用原始文本，而是用已存在的文档
-                        new MoreLikeThisQueryBuilder.Item[]{
-                                // 指定示例文档，index为别名"question"，id为当前题目ID
-                                new MoreLikeThisQueryBuilder.Item("question", String.valueOf(id))
-                        }
-                )
+                fields, // 用于比较的字段
+                null, // likeTexts, 这里我们不用原始文本，而是用已存在的文档
+                new MoreLikeThisQueryBuilder.Item[] {
+                        // 指定示例文档，index为别名"question"，id为当前题目ID
+                        new MoreLikeThisQueryBuilder.Item("question", String.valueOf(id))
+                })
                 .minTermFreq(1) // 词条在示例文档中至少出现1次
-                .minDocFreq(1)  // 词条在索引中至少出现在1个文档中
+                .minDocFreq(1) // 词条在索引中至少出现在1个文档中
                 .maxQueryTerms(12); // 最多使用12个词条来生成查询
 
         // 3. 构建布尔查询，组合 MLT 查询并排除自身
@@ -453,48 +514,12 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
                 .map(SearchHit::getContent)
                 .map(QuestionEsDTO::dtoToObj)
                 .map(
-                    QuestionVO::objToVo
-                ).collect(Collectors.toList());
-    }
-
-    @Override
-    @AutoCache(scene = "question_detail", keyExpression = "#id", randomExpireRange = 60)
-    public QuestionVO getCacheQuestionVO(long id) {
-        // 1. 核心数据查询
-        Question question = this.getById(id);
-        // 如果题目不存在，返回null，让缓存穿透防护机制处理
-        if (question == null) {
-            return null;
-        }
-
-        // 2. 转换为 VO 并填充关联信息
-        QuestionVO questionVO = QuestionVO.objToVo(question);
-        User user = userService.getById(question.getUserId());
-        questionVO.setUser(userService.getUserVO(user));
-
-        return questionVO;
-    }
-
-    @Override
-    @CacheEvict(scene = "question_detail", keyExpression = "#id")
-    public boolean deleteQuestionWithCache(Long id) {
-        return this.removeById(id);
-    }
-
-    @Override
-    @CacheEvict(scene = "question_detail", keyExpression = "#question.id")
-    public boolean updateQuestionWithCache(Question question) {
-        return this.updateById(question);
-    }
-
-    @Override
-    @CacheEvict(scene = "question_detail", keyExpression = "#questionIdList", isBatch = true)
-    public void batchDeleteQuestionsWithCache(List<Long> questionIdList) {
-        this.batchDeleteQuestions(questionIdList);
+                        QuestionVO::objToVo)
+                .collect(Collectors.toList());
     }
 
     /*
-    获取搜索建议
+     * 获取搜索建议
      */
     @Override
     public List<String> getSuggestions(String prefix) {
@@ -517,10 +542,11 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         Suggest suggest = searchHits.getSuggest();
         if (suggest != null) {
             // 关键改动：直接处理返回的原始 Suggest.Suggestion 对象
-            Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestionResult =
-                    suggest.getSuggestion(suggestionName);
+            Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestionResult = suggest
+                    .getSuggestion(suggestionName);
             if (suggestionResult != null) {
-                for (Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option> entry : suggestionResult.getEntries()) {
+                for (Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option> entry : suggestionResult
+                        .getEntries()) {
                     for (Suggest.Suggestion.Entry.Option option : entry.getOptions()) {
                         suggestionList.add(option.getText());
                     }
@@ -530,20 +556,5 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         return suggestionList;
     }
 
-    /**
-     * 批量删除题目
-     * @param questionIdList
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(scene = "question_detail", keyExpression = "#questionIdList", isBatch = true)
-    public void batchDeleteQuestions(List<Long> questionIdList) {
-        ThrowUtils.throwIf(CollUtil.isEmpty(questionIdList), ErrorCode.PARAMS_ERROR,"题目列表不能为空");
-        boolean result = this.removeBatchByIds(questionIdList);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "批量删除题目失败");
-        // 移除关联关系
-        questionBankQuestionService.remove(new LambdaQueryWrapper<QuestionBankQuestion>()
-                .in(QuestionBankQuestion::getQuestionId, questionIdList));
-    }
-
+    // endregion
 }

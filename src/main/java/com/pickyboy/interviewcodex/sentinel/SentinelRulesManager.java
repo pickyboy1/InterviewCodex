@@ -22,6 +22,7 @@ public class SentinelRulesManager {
     public void initRules() {
         initFlowRules();
         initDegradeRules();
+        initAuthRules();
     }
 
     public static void initFlowRules() {
@@ -54,5 +55,25 @@ public class SentinelRulesManager {
         // 加载规则
         DegradeRuleManager.loadRules(java.util.Arrays.asList(slowCallRule, errorRateRule));
 
+    }
+
+    /**
+     * 初始化认证接口限流规则（防刷、防爆破）
+     */
+    public static void initAuthRules() {
+        // 用户登录接口：基于IP限制，1分钟内最多30次
+        ParamFlowRule loginRule = new ParamFlowRule("userLogin")
+                .setParamIdx(0)          // 第一个参数（IP地址）
+                .setCount(30)            // 最大访问次数
+                .setDurationInSec(60);   // 时间窗口60秒
+
+        // 用户注册接口：基于IP限制，1分钟内最多30次
+        ParamFlowRule registerRule = new ParamFlowRule("userRegister")
+                .setParamIdx(0)          // 第一个参数（IP地址）
+                .setCount(30)            // 最大访问次数
+                .setDurationInSec(60);   // 时间窗口60秒
+
+        // 加载认证相关的参数限流规则
+        ParamFlowRuleManager.loadRules(java.util.Arrays.asList(loginRule, registerRule));
     }
 }

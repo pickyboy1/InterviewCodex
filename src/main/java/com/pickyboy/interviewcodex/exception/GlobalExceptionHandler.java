@@ -3,6 +3,7 @@ package com.pickyboy.interviewcodex.exception;
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
 import cn.dev33.satoken.exception.NotRoleException;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
 import com.pickyboy.interviewcodex.common.BaseResponse;
 import com.pickyboy.interviewcodex.common.ErrorCode;
 import com.pickyboy.interviewcodex.common.ResultUtils;
@@ -36,6 +37,13 @@ public class GlobalExceptionHandler {
     public BaseResponse<?> notRoleExceptionHandler(NotRoleException e) {
         log.error("NotRoleException", e);
         return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, "无权限");
+    }
+
+    // sentinel 限流异常处理
+    @ExceptionHandler(BlockException.class)
+    public BaseResponse<?> sentinelExceptionHandler(BlockException e) {
+        log.warn("请求被sentinel拦截,规则类型:{},规则详情:{}", e.getClass().getSimpleName(), e.getRule());
+        return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "系统繁忙,请稍后再试");
     }
 
     @ExceptionHandler(NotPermissionException.class)

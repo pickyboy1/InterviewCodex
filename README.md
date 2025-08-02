@@ -164,7 +164,34 @@ public Result handleFallback(String keyword, Throwable ex) {
 }
 ```
 
-#### 3. 🔄 智能缓存管理
+#### 3. 🛡️ 安全防护机制
+```java
+// 认证接口防刷防爆破示例
+@PostMapping("/login")
+public BaseResponse<LoginUserVO> userLogin(@RequestBody UserLoginRequest request, HttpServletRequest httpRequest) {
+    String clientIp = NetUtils.getIpAddress(httpRequest);
+    Entry entry = null;
+
+    try {
+        // 基于IP的参数限流：1分钟内最多30次登录请求
+        entry = SphU.entry("userLogin", EntryType.IN, 1, clientIp);
+
+        // 执行登录逻辑
+        LoginUserVO loginUserVO = userService.userLogin(userAccount, userPassword, httpRequest);
+        return ResultUtils.success(loginUserVO);
+
+    } catch (ParamFlowException e) {
+        log.warn("登录被限流，IP: {}，疑似暴力破解", clientIp);
+        return ResultUtils.error(ErrorCode.TOO_MANY_REQUEST, "登录请求过于频繁，请稍后再试");
+    } finally {
+        if (entry != null) {
+            entry.exit(1, clientIp);
+        }
+    }
+}
+```
+
+#### 4. 🔄 智能缓存管理
 ```java
 // 缓存一致性保证示例
 @Service
@@ -214,7 +241,8 @@ public class QuestionBankService {
 - **配置中心**：Nacos 动态配置 + 实时更新
 
 ### 4. 安全防护机制
-- **认证授权**：Sa-Token JWT + RBAC
+- **认证授权**：Sa-Token JWT + RBAC权限模型
+- **防刷防爆破**：基于IP的参数限流，登录/注册1分钟最多30次
 - **IP防护**：Nacos + 布隆过滤器动态黑名单
 - **防爬机制**：Redis 计数器 + 自动封禁
 - **数据脱敏**：敏感信息自动脱敏
