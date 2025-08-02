@@ -12,6 +12,8 @@ import javax.servlet.http.HttpServletRequest;
 
 /**
  * 获取用户登录设备
+ *
+ * @author pickyboy
  */
 public class DeviceUtils {
     public static String getRequestDevice(HttpServletRequest request){

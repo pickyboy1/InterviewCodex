@@ -9,12 +9,12 @@ import com.pickyboy.interviewcodex.model.entity.QuestionBank;
 import com.pickyboy.interviewcodex.model.vo.QuestionBankVO;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 /**
  * 题库服务
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://www.code-nav.cn">编程导航学习圈</a>
+ * @author pickyboy
  */
 public interface QuestionBankService extends IService<QuestionBank> {
 
@@ -33,7 +33,7 @@ public interface QuestionBankService extends IService<QuestionBank> {
      * @return
      */
     QueryWrapper<QuestionBank> getQueryWrapper(QuestionBankQueryRequest questionBankQueryRequest);
-    
+
     /**
      * 获取题库封装
      *
@@ -51,4 +51,32 @@ public interface QuestionBankService extends IService<QuestionBank> {
      * @return
      */
     Page<QuestionBankVO> getQuestionBankVOPage(Page<QuestionBank> questionBankPage, HttpServletRequest request);
+
+    /**
+     * 获取缓存的题库详情
+     * @param id 题库ID
+     * @param needQueryQuestionList 是否需要查询题目列表
+     * @return 题库详情VO
+     */
+    QuestionBankVO getCachedQuestionBankVO(Long id, boolean needQueryQuestionList);
+
+    /**
+     * 删除题库（带缓存清除）
+     * @param id 题库ID
+     * @return 是否删除成功
+     */
+    boolean deleteQuestionBankWithCache(Long id);
+
+    /**
+     * 更新题库（带缓存清除）
+     * @param questionBank 题库信息
+     * @return 是否更新成功
+     */
+    boolean updateQuestionBankWithCache(QuestionBank questionBank);
+
+    /**
+     * 批量删除题库（带缓存清除）
+     * @param questionBankIdList 题库ID列表
+     */
+    void batchDeleteQuestionBanksWithCache(List<Long> questionBankIdList);
 }

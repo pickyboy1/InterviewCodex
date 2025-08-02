@@ -14,6 +14,11 @@ import java.util.List;
 
 import static com.pickyboy.interviewcodex.constant.UserConstant.USER_LOGIN_STATE;
 
+/**
+ * 自定义 StpInterface 实现
+ *
+ * @author pickyboy
+ */
 @Component
 public class StpInterfaceImpl implements StpInterface {
     /**

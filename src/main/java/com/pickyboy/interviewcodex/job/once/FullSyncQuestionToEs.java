@@ -8,7 +8,6 @@ import com.pickyboy.interviewcodex.model.entity.Question;
 import com.pickyboy.interviewcodex.service.QuestionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 import java.util.List;
@@ -17,6 +16,7 @@ import java.util.stream.Collectors;
 /**
  * 全量题目帖子到 es
  *
+ * @author pickyboy
  */
     // 单次任务执行
 //@Component

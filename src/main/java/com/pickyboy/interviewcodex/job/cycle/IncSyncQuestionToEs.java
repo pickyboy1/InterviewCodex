@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 /**
  * 增量同步题目到 es
  *
- * @author <a href="https://github.com/liyupi">pickyboy</a>
+ * @author pickyboy
  */
 
 @Component

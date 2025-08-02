@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 /**
  * 分布式锁注解
  *
- * @author Hollis
+ * @author pickyboy
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
@@ -29,7 +29,7 @@ public @interface DistributeLock {
     public String key() default DistributeLockConstant.NONE_KEY;
 
     /**
-     * SPEL表达式:
+     * SPEL表达式: Spring Expression Language（Spring 表达式语言）
      * <pre>
      *     #id
      *     #insertResult.id

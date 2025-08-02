@@ -8,6 +8,8 @@ import lombok.Data;
 
 /**
  * 题库题目
+ *
+ * @author pickyboy
  * @TableName question_bank_question
  */
 @TableName(value ="question_bank_question")

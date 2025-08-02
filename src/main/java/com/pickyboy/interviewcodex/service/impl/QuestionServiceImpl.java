@@ -9,6 +9,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.pickyboy.interviewcodex.cache.AutoCache;
+import com.pickyboy.interviewcodex.cache.CacheEvict;
 import com.pickyboy.interviewcodex.common.ErrorCode;
 import com.pickyboy.interviewcodex.constant.CommonConstant;
 import com.pickyboy.interviewcodex.exception.BusinessException;
@@ -138,7 +140,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         queryWrapper.eq(ObjectUtils.isNotEmpty(id), "id", id);
         queryWrapper.eq(ObjectUtils.isNotEmpty(userId), "userId", userId);
         // 排序规则
-        if(sortField.equals("error")){
+
+        if(StringUtils.equals(sortField,"error")){
             sortField = null;
         }
         queryWrapper.orderBy(SqlUtils.validSortField(sortField),
@@ -454,6 +457,39 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
                 ).collect(Collectors.toList());
     }
 
+    @Override
+    @AutoCache(scene = "question_detail",keyExpression = "#id")
+    public QuestionVO getCacheQuestionVO(long id) {
+// 1. 核心数据查询
+        Question question = this.getById(id);
+        ThrowUtils.throwIf(question == null, ErrorCode.NOT_FOUND_ERROR);
+
+        // 2. 转换为 VO 并填充关联信息
+        QuestionVO questionVO = QuestionVO.objToVo(question);
+        User user = userService.getById(question.getUserId());
+        questionVO.setUser(userService.getUserVO(user));
+
+        return questionVO;
+    }
+
+    @Override
+    @CacheEvict(scene = "question_detail", keyExpression = "#id")
+    public boolean deleteQuestionWithCache(Long id) {
+        return this.removeById(id);
+    }
+
+    @Override
+    @CacheEvict(scene = "question_detail", keyExpression = "#question.id")
+    public boolean updateQuestionWithCache(Question question) {
+        return this.updateById(question);
+    }
+
+    @Override
+    @CacheEvict(scene = "question_detail", keyExpression = "#questionIdList", isBatch = true)
+    public void batchDeleteQuestionsWithCache(List<Long> questionIdList) {
+        this.batchDeleteQuestions(questionIdList);
+    }
+
     /*
     获取搜索建议
      */
@@ -497,6 +533,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(scene = "question_detail", keyExpression = "#questionIdList", isBatch = true)
     public void batchDeleteQuestions(List<Long> questionIdList) {
         ThrowUtils.throwIf(CollUtil.isEmpty(questionIdList), ErrorCode.PARAMS_ERROR,"题目列表不能为空");
         boolean result = this.removeBatchByIds(questionIdList);

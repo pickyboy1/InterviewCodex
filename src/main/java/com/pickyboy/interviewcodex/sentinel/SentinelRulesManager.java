@@ -11,6 +11,11 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 
+/**
+ * Sentinel 规则管理器
+ *
+ * @author pickyboy
+ */
 @Component
 public class SentinelRulesManager {
     @PostConstruct

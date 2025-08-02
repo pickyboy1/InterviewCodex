@@ -39,13 +39,11 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * 题目接口
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://www.code-nav.cn">编程导航学习圈</a>
+ * @author pickyboy
  */
 @RestController
 @RequestMapping("/question")
@@ -121,7 +119,7 @@ public class QuestionController {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
         // 操作数据库
-        boolean result = questionService.removeById(id);
+        boolean result = questionService.deleteQuestionWithCache(id);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
     }
@@ -152,7 +150,7 @@ public class QuestionController {
         Question oldQuestion = questionService.getById(id);
         ThrowUtils.throwIf(oldQuestion == null, ErrorCode.NOT_FOUND_ERROR);
         // 操作数据库
-        boolean result = questionService.updateById(question);
+        boolean result = questionService.updateQuestionWithCache(question);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
     }
@@ -169,26 +167,26 @@ public class QuestionController {
         if (questionEditRequest == null || questionEditRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // 在此处将实体类和 DTO 进行转换
+        //  在此处将实体类和 DTO 进行转换
         Question question = new Question();
         BeanUtils.copyProperties(questionEditRequest, question);
         List<String> tags = questionEditRequest.getTags();
-        if (tags != null) {
+        if (tags != null)  {
             question.setTags(JSONUtil.toJsonStr(tags));
         }
         // 数据校验
         questionService.validQuestion(question, false);
-        User loginUser = userService.getLoginUser(request);
         // 判断是否存在
         long id = questionEditRequest.getId();
         Question oldQuestion = questionService.getById(id);
         ThrowUtils.throwIf(oldQuestion == null, ErrorCode.NOT_FOUND_ERROR);
+        User user = userService.getLoginUser(request);
         // 仅本人或管理员可编辑
-        if (!oldQuestion.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
+        if (!oldQuestion.getUserId().equals(user.getId()) && !userService.isAdmin(request)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
         // 操作数据库
-        boolean result = questionService.updateById(question);
+        boolean result = questionService.updateQuestionWithCache(question);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
     }
@@ -227,6 +225,8 @@ public class QuestionController {
      * @param id
      * @return
      */
+
+    // todo： 增加限流
     @GetMapping("/get/vo")
     public BaseResponse<QuestionVO> getQuestionVOById(long id, HttpServletRequest request) {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
@@ -235,10 +235,10 @@ public class QuestionController {
         crawlerDetect(loginUser.getId());
 
         // 查询数据库
-        Question question = questionService.getById(id);
+        QuestionVO question = questionService.getCacheQuestionVO(id);
         ThrowUtils.throwIf(question == null, ErrorCode.NOT_FOUND_ERROR);
         // 获取封装类
-        return ResultUtils.success(questionService.getQuestionVO(question, request));
+        return ResultUtils.success(question);
     }
 
     /**
@@ -278,7 +278,7 @@ public class QuestionController {
     }
 
     /**
-     * 分页获取题目列表（限流版本）
+     * 分页搜索题目列表（限流版本）
      *
      * @param questionQueryRequest
      * @param request
@@ -294,6 +294,7 @@ public class QuestionController {
         // 基于ip限流
         String remoteAddr = request.getRemoteAddr();
         Entry entry = null;
+        // 编码方式声明资源,sentinel会自动统计访问次数,超过阈值会触发熔断降级
         try {
             entry = SphU.entry("listQuestionVOByPageSentinel", EntryType.IN,1,remoteAddr);
             // 被保护的资源

@@ -8,6 +8,7 @@ import java.util.List;
 /**
  * 批量删除题目请求
  *
+ * @author pickyboy
  */
 @Data
 public class QuestionBatchDeleteRequest implements Serializable {

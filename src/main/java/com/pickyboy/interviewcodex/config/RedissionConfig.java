@@ -8,6 +8,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Redission 配置
+ *
+ * @author pickyboy
+ */
 @Configuration
 @ConfigurationProperties(prefix = "spring.redis")
 @Data

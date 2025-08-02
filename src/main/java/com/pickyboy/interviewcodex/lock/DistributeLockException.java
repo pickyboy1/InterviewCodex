@@ -3,7 +3,7 @@ package com.pickyboy.interviewcodex.lock;
 /**
  * 分布式锁异常
  *
- * @author hollis
+ * @author pickyboy
  */
 public class DistributeLockException extends RuntimeException {
 

@@ -13,8 +13,7 @@ import java.util.List;
 /**
  * 题目服务
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://www.code-nav.cn">编程导航学习圈</a>
+ * @author pickyboy
  */
 public interface QuestionService extends IService<Question> {
 
@@ -33,7 +32,7 @@ public interface QuestionService extends IService<Question> {
      * @return
      */
     QueryWrapper<Question> getQueryWrapper(QuestionQueryRequest questionQueryRequest);
-    
+
     /**
      * 获取题目封装
      *
@@ -76,6 +75,26 @@ public interface QuestionService extends IService<Question> {
     void batchDeleteQuestions(List<Long> questionIdList);
 
     /**
+     * 删除题目（带缓存清除）
+     * @param id 题目ID
+     * @return 是否删除成功
+     */
+    boolean deleteQuestionWithCache(Long id);
+
+    /**
+     * 更新题目（带缓存清除）
+     * @param question 题目信息
+     * @return 是否更新成功
+     */
+    boolean updateQuestionWithCache(Question question);
+
+    /**
+     * 批量删除题目（带缓存清除）
+     * @param questionIdList 题目ID列表
+     */
+    void batchDeleteQuestionsWithCache(List<Long> questionIdList);
+
+    /**
      * 获取题目建议
      * @param prefix
      * @return
@@ -83,4 +102,11 @@ public interface QuestionService extends IService<Question> {
     List<String> getSuggestions(String prefix);
 
     List<QuestionVO> getRecommendations(long id);
+
+    /**
+     * 获取缓存的题目详情
+     * @param id 题目ID
+     * @return 题目详情VO
+     */
+    QuestionVO getCacheQuestionVO(long id);
 }

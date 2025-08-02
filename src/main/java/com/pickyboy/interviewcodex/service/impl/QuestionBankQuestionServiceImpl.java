@@ -6,10 +6,12 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.common.collect.Lists;
+import com.pickyboy.interviewcodex.cache.CacheUtils;
 import com.pickyboy.interviewcodex.common.ErrorCode;
 import com.pickyboy.interviewcodex.constant.CommonConstant;
 import com.pickyboy.interviewcodex.exception.BusinessException;
 import com.pickyboy.interviewcodex.exception.ThrowUtils;
+import com.pickyboy.interviewcodex.lock.DistributeLock;
 import com.pickyboy.interviewcodex.mapper.QuestionBankQuestionMapper;
 
 import com.pickyboy.interviewcodex.model.dto.questionbankquestion.QuestionBankQuestionQueryRequest;
@@ -26,6 +28,7 @@ import com.pickyboy.interviewcodex.service.UserService;
 import com.pickyboy.interviewcodex.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -46,11 +49,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+
 /**
  * 题库题目关联服务实现
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://www.code-nav.cn">编程导航学习圈</a>
+ * @author pickyboy
  */
 @Service
 @Slf4j
@@ -63,11 +66,18 @@ public class QuestionBankQuestionServiceImpl extends ServiceImpl<QuestionBankQue
     private QuestionService questionService;
 
     @Resource
+    @Lazy
     private QuestionBankService questionBankService;
 
     @Autowired
-    @Qualifier("batchExcutor")
+    @Qualifier("batchExecutor")
     private ThreadPoolExecutor executor;
+
+    @Resource
+    private RedissonClient redissonClient;
+
+    @Autowired
+    private CacheUtils cacheUtils;
 
     /**
      * 校验数据
@@ -209,6 +219,7 @@ public class QuestionBankQuestionServiceImpl extends ServiceImpl<QuestionBankQue
      * @param loginUser
      */
     @Override
+    @DistributeLock(scene="batchAddQuestionsToBank", keyExpression = "#questionBankId")
     public void batchAddQuestionsToBank(List<Long> questionIdList, Long questionBankId, User loginUser) {
         // 参数校验
         ThrowUtils.throwIf(CollUtil.isEmpty(questionIdList), ErrorCode.PARAMS_ERROR, "题目列表不能为空");
@@ -231,7 +242,7 @@ public class QuestionBankQuestionServiceImpl extends ServiceImpl<QuestionBankQue
                 .in(QuestionBankQuestion::getQuestionId, validQuestionIdList), obj -> Long.parseLong(obj.toString())));
         validQuestionIdList.removeAll(alreadyAdded);
 
-        // 添加
+        // 转换为数据库实体类
         List<QuestionBankQuestion> toInsert = new ArrayList<>();
         for (Long questionId : validQuestionIdList) {
             QuestionBankQuestion questionBankQuestion = new QuestionBankQuestion();
@@ -292,6 +303,32 @@ public class QuestionBankQuestionServiceImpl extends ServiceImpl<QuestionBankQue
         boolean success = this.remove(new LambdaQueryWrapper<QuestionBankQuestion>()
                 .eq(QuestionBankQuestion::getQuestionBankId, questionBankId).in(QuestionBankQuestion::getQuestionId, questionIdList));
         ThrowUtils.throwIf(!success, ErrorCode.OPERATION_ERROR,"移除失败");
+    }
+
+    @Override
+    public void batchAddQuestionsToBankWithCache(List<Long> questionIdList, Long questionBankId, User loginUser) {
+        // 调用原有方法
+        this.batchAddQuestionsToBank(questionIdList, questionBankId, loginUser);
+        // 清除题库缓存
+        clearQuestionBankCache(questionBankId);
+    }
+
+    @Override
+    public void batchRemoveQuestionsFromBankWithCache(List<Long> questionIdList, Long questionBankId) {
+        // 调用原有方法
+        this.batchRemoveQuestionsFromBank(questionIdList, questionBankId);
+        // 清除题库缓存
+        clearQuestionBankCache(questionBankId);
+    }
+
+    /**
+     * 清除题库缓存（两种key格式）
+     * @param questionBankId 题库ID
+     */
+    private void clearQuestionBankCache(Long questionBankId) {
+        if (questionBankId != null) {
+            cacheUtils.evictCacheWithStatus("bank_detail", questionBankId, Arrays.asList("true", "false"));
+        }
     }
 
 }

@@ -1,9 +1,7 @@
 package com.pickyboy.interviewcodex.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.pickyboy.interviewcodex.annotation.AuthCheck;
 import com.pickyboy.interviewcodex.common.BaseResponse;
 import com.pickyboy.interviewcodex.common.DeleteRequest;
 import com.pickyboy.interviewcodex.common.ErrorCode;
@@ -29,8 +27,7 @@ import java.util.List;
 /**
  * 题库题目关联接口
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://www.code-nav.cn">编程导航学习圈</a>
+ * @author pickyboy
  */
 @RestController
 @RequestMapping("/questionBankQuestion")
@@ -42,6 +39,7 @@ public class QuestionBankQuestionController {
 
     @Resource
     private UserService userService;
+
 
     // region 增删改查
 
@@ -112,7 +110,7 @@ public class QuestionBankQuestionController {
         if (questionBankQuestionUpdateRequest == null || questionBankQuestionUpdateRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // 在此处将实体类和 DTO 进行转换
+        //  在此处将实体类和 DTO 进行转换
         QuestionBankQuestion questionBankQuestion = new QuestionBankQuestion();
         BeanUtils.copyProperties(questionBankQuestionUpdateRequest, questionBankQuestion);
         // 数据校验
@@ -160,22 +158,16 @@ public class QuestionBankQuestionController {
         return ResultUtils.success(questionBankQuestionPage);
     }
 
-
-
     /**
-     * 分页获取当前登录用户创建的题库题目关联列表
+     * 分页获取题库题目关联封装列表
      *
      * @param questionBankQuestionQueryRequest
      * @param request
      * @return
      */
-    @PostMapping("/my/list/page/vo")
-    public BaseResponse<Page<QuestionBankQuestionVO>> listMyQuestionBankQuestionVOByPage(@RequestBody QuestionBankQuestionQueryRequest questionBankQuestionQueryRequest,
-                                                                 HttpServletRequest request) {
-        ThrowUtils.throwIf(questionBankQuestionQueryRequest == null, ErrorCode.PARAMS_ERROR);
-        // 补充查询条件，只查询当前登录用户的数据
-        User loginUser = userService.getLoginUser(request);
-        questionBankQuestionQueryRequest.setUserId(loginUser.getId());
+    @PostMapping("/list/page/vo")
+    public BaseResponse<Page<QuestionBankQuestionVO>> listQuestionBankQuestionVOByPage(@RequestBody QuestionBankQuestionQueryRequest questionBankQuestionQueryRequest,
+            HttpServletRequest request) {
         long current = questionBankQuestionQueryRequest.getCurrent();
         long size = questionBankQuestionQueryRequest.getPageSize();
         // 限制爬虫
@@ -187,55 +179,9 @@ public class QuestionBankQuestionController {
         return ResultUtils.success(questionBankQuestionService.getQuestionBankQuestionVOPage(questionBankQuestionPage, request));
     }
 
+    // region 批量操作
     /**
-     * 删除题库题目关联(根据题库和题目id移除)
-     *
-     * @param removeRequest
-     * @param
-     * @return
-     */
-    @PostMapping("/remove")
-    @SaCheckRole(UserConstant.ADMIN_ROLE)
-    public BaseResponse<Boolean> removeQuestionBankQuestion(
-            @RequestBody QuestionBankQuestionRemoveRequest removeRequest) {
-        if (removeRequest == null || removeRequest.getQuestionId() <= 0|| removeRequest.getQuestionBankId() <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        Long questionId = removeRequest.getQuestionId();
-        Long questionBankId = removeRequest.getQuestionBankId();
-        // 移除
-        boolean remove = questionBankQuestionService.remove(new LambdaQueryWrapper<QuestionBankQuestion>().
-                eq(QuestionBankQuestion::getQuestionBankId, questionBankId).eq(QuestionBankQuestion::getQuestionId, questionId));
-
-        return ResultUtils.success(true);
-    }
-
-    // endregion
-
-    /**
-     * 分页获取题库题目关联列表（封装类）
-     *
-     * @param questionBankQuestionQueryRequest
-     * @param request
-     * @return
-     */
-    @PostMapping("/list/page/vo")
-    public BaseResponse<Page<QuestionBankQuestionVO>> listQuestionBankQuestionVOByPage(@RequestBody QuestionBankQuestionQueryRequest questionBankQuestionQueryRequest,
-                                                                                       HttpServletRequest request) {
-        long current = questionBankQuestionQueryRequest.getCurrent();
-        long size = questionBankQuestionQueryRequest.getPageSize();
-        // 限制爬虫
-        ThrowUtils.throwIf(size > 200, ErrorCode.PARAMS_ERROR);
-        // 查询数据库
-        // 查询出关联关系
-        Page<QuestionBankQuestion> questionBankQuestionPage = questionBankQuestionService.page(new Page<>(current, size),
-                questionBankQuestionService.getQueryWrapper(questionBankQuestionQueryRequest));
-        // 通过关联关系获取题库信息,题目信息
-        return ResultUtils.success(questionBankQuestionService.getQuestionBankQuestionVOPage(questionBankQuestionPage, request));
-    }
-
-    /**
-     * 批量添加题目题库关联
+     * 批量向题库添加题目
      *
      * @param batchAddRequest
      * @param request
@@ -249,7 +195,7 @@ public class QuestionBankQuestionController {
        User loginUser =  userService.getLoginUser(request);
        Long questionBankId = batchAddRequest.getQuestionBankId();
         List<Long> questionIdList = batchAddRequest.getQuestionIdList();
-        questionBankQuestionService.batchAddQuestionsToBank( questionIdList,questionBankId,loginUser);
+        questionBankQuestionService.batchAddQuestionsToBankWithCache( questionIdList,questionBankId,loginUser);
         return ResultUtils.success(true);
     }
 
@@ -267,7 +213,7 @@ public class QuestionBankQuestionController {
         ThrowUtils.throwIf(batchRemoveRequest == null, ErrorCode.PARAMS_ERROR);
         Long questionBankId = batchRemoveRequest.getQuestionBankId();
         List<Long> questionIdList = batchRemoveRequest.getQuestionIdList();
-        questionBankQuestionService.batchRemoveQuestionsFromBank( questionIdList,questionBankId);
+        questionBankQuestionService.batchRemoveQuestionsFromBankWithCache( questionIdList,questionBankId);
         return ResultUtils.success(true);
     }
 

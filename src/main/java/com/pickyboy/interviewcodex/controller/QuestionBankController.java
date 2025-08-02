@@ -42,8 +42,7 @@ import javax.servlet.http.HttpServletRequest;
 /**
  * 题库接口
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://www.code-nav.cn">编程导航学习圈</a>
+ * @author pickyboy
  */
 @RestController
 @RequestMapping("/questionBank")
@@ -56,8 +55,8 @@ public class QuestionBankController {
     @Resource
     private UserService userService;
 
-    @Resource
-     private QuestionService questionService;
+   /* @Resource
+     private QuestionService questionService;*/
 
     // region 基础增删改查
 
@@ -112,7 +111,7 @@ public class QuestionBankController {
         QuestionBank oldQuestionBank = questionBankService.getById(id);
         ThrowUtils.throwIf(oldQuestionBank == null, ErrorCode.NOT_FOUND_ERROR);
         // 操作数据库
-        boolean result = questionBankService.updateById(questionBank);
+        boolean result = questionBankService.updateQuestionBankWithCache(questionBank);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
     }
@@ -146,7 +145,7 @@ public class QuestionBankController {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
         // 操作数据库
-        boolean result = questionBankService.updateById(questionBank);
+        boolean result = questionBankService.updateQuestionBankWithCache(questionBank);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
     }
@@ -205,9 +204,10 @@ public class QuestionBankController {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
         // 操作数据库
-        boolean result = questionBankService.removeById(id);
-        questionBankQuestionService.remove(new LambdaQueryWrapper<QuestionBankQuestion>().eq(QuestionBankQuestion::getQuestionBankId, id));
+        boolean result = questionBankService.deleteQuestionBankWithCache(id);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 删除题库关联关系（这个操作不需要缓存清除，因为没有缓存关联表）
+        questionBankQuestionService.remove(new LambdaQueryWrapper<QuestionBankQuestion>().eq(QuestionBankQuestion::getQuestionBankId, id));
         return ResultUtils.success(true);
     }
     /**
@@ -216,47 +216,169 @@ public class QuestionBankController {
      * @param questionBankQueryRequest
      * @return
      */
-    // 使用JD HotKey实时发现与缓存热门题目
+    // 使用JD HotKey实时发现与缓存热门题库
+    // todo: 增加限流
     @GetMapping("/get/vo")
     public BaseResponse<QuestionBankVO> getQuestionBankVOById(QuestionBankQueryRequest questionBankQueryRequest, HttpServletRequest request) {
+        // 校验参数
         ThrowUtils.throwIf(questionBankQueryRequest == null, ErrorCode.PARAMS_ERROR);
         Long id = questionBankQueryRequest.getId();
         boolean needQueryQuestionList = questionBankQueryRequest.isNeedQueryQuestionList();
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
 
-        // 判断有无缓存
+        // 原来实现存在bug
+        /*
+        存在bug,缓存中的题库不一定带有题目,不能根据isNeedQueryQuestionList的情况实际返回
         // 生成key
-        String key  = "bank_detail_"+id;
-        // 如果是热key
-        // isHotKey方法会上报一次key,用于统计
-        if(JdHotKeyStore.isHotKey( key)){
-            // 从缓存读取
-            // getValue方法会自动上报一次key,用于统计,get方法不会,避免重复上报
+        String key  = "bank_detail_" + id;
+        log.info("开始处理题库详情请求, key: {}", key);
+
+        // 探测key是否为热点，并上报访问事件
+        if (JdHotKeyStore.isHotKey(key)) {
+            log.info("Hotkey detected, key: {}", key);
+            // 尝试从本地缓存读取
             QuestionBankVO questionBankVO = (QuestionBankVO) JdHotKeyStore.get(key);
-            if(questionBankVO != null){
+            if (questionBankVO != null) {
+                log.info("Cache hit for hotkey: {}", key);
                 // 缓存命中直接返回
                 return ResultUtils.success(questionBankVO);
             }
+            log.warn("Cache miss for hotkey: {}. This might happen if the value hasn't been set yet after being marked as hot.", key);
+        } else {
+            log.debug("Key is not hot yet, key: {}", key);
         }
 
-        // 查询数据库
+        // 缓存未命中，查询数据库
+        log.info("Cache miss, querying database for key: {}", key);
         QuestionBank questionBank = questionBankService.getById(id);
         ThrowUtils.throwIf(questionBank == null, ErrorCode.NOT_FOUND_ERROR);
         QuestionBankVO questionBankVO = questionBankService.getQuestionBankVO(questionBank, request);
 
         // 查询题目
-        if(needQueryQuestionList){
-            QuestionQueryRequest questionQueryRequest = new QuestionQueryRequest();
-            questionQueryRequest.setQuestionBankId(id);
-            Page<Question> questionPage = questionService.listQuestionByPage(questionQueryRequest);
+        if (needQueryQuestionList) {
+            log.info("Querying associated questions for question bank id: {}", id);
+            QuestionQueryRequest innerQuestionQueryRequest = new QuestionQueryRequest();
+            innerQuestionQueryRequest.setQuestionBankId(id);
+            Page<Question> questionPage = questionService.listQuestionByPage(innerQuestionQueryRequest);
             questionBankVO.setQuestionPage(questionPage);
         }
-        // 如果是热key,缓存
-        JdHotKeyStore.smartSet(key, questionBankVO);
-        // 获取封装类
-        return ResultUtils.success(questionBankVO);
-    }
 
+        // 智能缓存：如果是热key,则缓存数据
+        log.info("Attempting to smartSet cache for key: {}", key);
+        JdHotKeyStore.smartSet(key, questionBankVO);
+*/
+
+      // --------------------------------------------
+      // region bug修正
+        // [BUG修复] 将 needQueryQuestionList 参数加入 key 中，避免缓存污染
+        // 这样，带题目列表和不带题目列表的请求将使用不同的缓存key
+
+
+       /* String key = "bank_detail_" + id + "_questions:" + needQueryQuestionList;
+        log.info("开始处理题库详情请求, key: {}", key);
+
+        // 探测key是否为热点，并上报访问事件
+        if (JdHotKeyStore.isHotKey(key)) {
+            log.info("Hotkey detected, key: {}", key);
+            // 尝试从本地缓存读取
+            QuestionBankVO questionBankVO = (QuestionBankVO) JdHotKeyStore.get(key);
+            if (questionBankVO != null) {
+                log.info("Cache hit for hotkey: {}", key);
+                // 缓存命中直接返回
+                return ResultUtils.success(questionBankVO);
+            }
+            log.warn("Cache miss for hotkey: {}. This might happen if the value hasn't been set yet after being marked as hot.", key);
+        } else {
+            log.debug("Key is not hot yet, key: {}", key);
+        }
+
+        // 缓存未命中，查询数据库
+        log.info("Cache miss, querying database for key: {}", key);
+        QuestionBank questionBank = questionBankService.getById(id);
+        ThrowUtils.throwIf(questionBank == null, ErrorCode.NOT_FOUND_ERROR);
+        QuestionBankVO questionBankVO = questionBankService.getQuestionBankVO(questionBank, request);
+
+        // 查询题目
+        if (needQueryQuestionList) {
+            log.info("Querying associated questions for question bank id: {}", id);
+            QuestionQueryRequest innerQuestionQueryRequest = new QuestionQueryRequest();
+            innerQuestionQueryRequest.setQuestionBankId(id);
+            Page<Question> questionPage = questionService.listQuestionByPage(innerQuestionQueryRequest);
+            questionBankVO.setQuestionPage(questionPage);
+        }
+
+        // 智能缓存：如果是热key,则缓存数据
+        log.info("Attempting to smartSet cache for key: {}", key);
+        JdHotKeyStore.smartSet(key, questionBankVO);*/
+        // endregion
+
+        // region 缓存充实方案进行修正
+        // [备选方案] 保持 Key 唯一，对缓存进行“充实”
+        /*String key = "bank_detail_" + id;
+        log.info("开始处理题库详情请求 (缓存充实方案), key: {}", key);
+
+        // 探测key是否为热点，并上报访问事件
+        if (JdHotKeyStore.isHotKey(key)) {
+            log.info("Hotkey detected, key: {}", key);
+            // 尝试从本地缓存读取
+            QuestionBankVO questionBankVO = (QuestionBankVO) JdHotKeyStore.get(key);
+            if (questionBankVO != null) {
+                log.info("Cache hit for hotkey: {}", key);
+
+                // [核心逻辑] 检查缓存内容是否满足当前请求的需求
+                if (needQueryQuestionList && questionBankVO.getQuestionPage() == null) {
+                    log.info("Cached object is incomplete for key: {}. Fetching questions to enrich it.", key);
+                    // 缓存中的对象不完整，需要补充题目列表
+                    // ⚠️注意：此处存在并发风险！如果多个请求同时到达这里，会多次查询数据库。
+                    // 在生产环境中，这里需要添加额外的锁（如 synchronized）来防止惊群效应。
+                    QuestionQueryRequest innerQuestionQueryRequest = new QuestionQueryRequest();
+                    innerQuestionQueryRequest.setQuestionBankId(id);
+                    Page<Question> questionPage = questionService.listQuestionByPage(innerQuestionQueryRequest);
+                    questionBankVO.setQuestionPage(questionPage);
+
+                    // 将补充完整的对象重新写回缓存
+                    log.info("Enriched cache object for key: {}. Updating cache.", key);
+                    JdHotKeyStore.smartSet(key, questionBankVO);
+                }
+
+                // 返回（可能已被充实的）缓存对象
+                return ResultUtils.success(questionBankVO);
+            }
+            log.warn("Cache miss for hotkey: {}. This might happen if the value hasn't been set yet after being marked as hot.", key);
+        } else {
+            log.debug("Key is not hot yet, key: {}", key);
+        }
+
+        // 缓存未命中，查询数据库
+        log.info("Cache miss, querying database for key: {}", key);
+        QuestionBank questionBank = questionBankService.getById(id);
+        ThrowUtils.throwIf(questionBank == null, ErrorCode.NOT_FOUND_ERROR);
+        QuestionBankVO questionBankVO = questionBankService.getQuestionBankVO(questionBank, request);
+
+        // 查询题目
+        if (needQueryQuestionList) {
+            log.info("Querying associated questions for question bank id: {}", id);
+            QuestionQueryRequest innerQuestionQueryRequest = new QuestionQueryRequest();
+            innerQuestionQueryRequest.setQuestionBankId(id);
+            Page<Question> questionPage = questionService.listQuestionByPage(innerQuestionQueryRequest);
+            questionBankVO.setQuestionPage(questionPage);
+        }
+
+        // 智能缓存：如果是热key,则缓存数据
+        log.info("Attempting to smartSet cache for key: {}", key);
+        JdHotKeyStore.smartSet(key, questionBankVO);*/
+        // 返回结果
+
+        // endregion
+
+      //  log.info("Finished processing request for key: {}", key);
+
+        // 使用自动缓存注解
+        // 调用带有缓存的 Service 方法
+        QuestionBankVO vo = questionBankService.getCachedQuestionBankVO(id, needQueryQuestionList);
+        // 封装并返回
+        return ResultUtils.success(vo);
+    }
 
 
     /**

@@ -7,17 +7,14 @@ import com.pickyboy.interviewcodex.model.entity.User;
 import com.pickyboy.interviewcodex.model.vo.LoginUserVO;
 import com.pickyboy.interviewcodex.model.vo.UserVO;
 
-import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 
 
 /**
  * 用户服务
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
+ * @author pickyboy
  */
 public interface UserService extends IService<User> {
 

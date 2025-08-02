@@ -7,6 +7,8 @@ import java.util.List;
 
 /**
  * 批量从题库移除题目关联请求
+ *
+ * @author pickyboy
  */
 @Data
 public class QuestionBankQuestionBatchRemoveRequest implements Serializable {

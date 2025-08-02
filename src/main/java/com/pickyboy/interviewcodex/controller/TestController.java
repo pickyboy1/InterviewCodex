@@ -3,7 +3,6 @@ package com.pickyboy.interviewcodex.controller;
 import cn.dev33.satoken.stp.StpUtil;
 import com.pickyboy.interviewcodex.common.BaseResponse;
 import com.pickyboy.interviewcodex.common.ResultUtils;
-import com.pickyboy.interviewcodex.esdao.QuestionEsDao;
 import com.pickyboy.interviewcodex.service.QuestionService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +16,8 @@ import java.util.List;
 /**
  *  测试Satoken框架
  *  实现用户登录
+ *
+ * @author pickyboy
  */
 @RestController
 @RequestMapping("/test")

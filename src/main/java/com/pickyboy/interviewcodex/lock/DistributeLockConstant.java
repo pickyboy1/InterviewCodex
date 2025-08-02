@@ -3,7 +3,7 @@ package com.pickyboy.interviewcodex.lock;
 /**
  * 分布式锁常量
  *
- * @author hollis
+ * @author pickyboy
  */
 public class DistributeLockConstant {
 

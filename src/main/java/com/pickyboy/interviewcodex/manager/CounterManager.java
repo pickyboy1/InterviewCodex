@@ -2,11 +2,9 @@ package com.pickyboy.interviewcodex.manager;
 
 import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.Redisson;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.IntegerCodec;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -16,6 +14,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 基于Redis的通用计数器
+ *
+ * @author pickyboy
  */
 @Slf4j
 @Service

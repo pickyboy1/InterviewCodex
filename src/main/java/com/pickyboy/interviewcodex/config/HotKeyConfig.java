@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * hotkey热点发现配置
+ * @author pickyboy
  */
 @Configuration
 @ConfigurationProperties(prefix = "hotkey")

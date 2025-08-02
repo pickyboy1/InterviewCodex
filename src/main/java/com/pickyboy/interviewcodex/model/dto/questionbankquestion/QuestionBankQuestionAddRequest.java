@@ -3,10 +3,11 @@ package com.pickyboy.interviewcodex.model.dto.questionbankquestion;
 import lombok.Data;
 
 import java.io.Serializable;
-import java.util.List;
 
 /**
  * 创建题库题目关联请求
+ *
+ * @author pickyboy
  */
 @Data
 public class QuestionBankQuestionAddRequest implements Serializable {

@@ -7,6 +7,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * Sa-Token  全局拦截器
+ *
+ * @author pickyboy
  */
 @Configuration
 public class SaTokenConfigure implements WebMvcConfigurer {

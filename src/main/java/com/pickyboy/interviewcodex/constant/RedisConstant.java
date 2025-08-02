@@ -1,5 +1,10 @@
 package com.pickyboy.interviewcodex.constant;
 
+/**
+ * Redis 常量
+ *
+ * @author pickyboy
+ */
 public interface RedisConstant {
 
     /*

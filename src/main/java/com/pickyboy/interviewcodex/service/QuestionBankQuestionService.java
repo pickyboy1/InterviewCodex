@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 
-import com.pickyboy.interviewcodex.model.dto.questionbankquestion.QuestionBankQuestionBatchAddRequest;
 import com.pickyboy.interviewcodex.model.dto.questionbankquestion.QuestionBankQuestionQueryRequest;
 import com.pickyboy.interviewcodex.model.entity.QuestionBankQuestion;
 import com.pickyboy.interviewcodex.model.entity.User;
@@ -17,8 +16,7 @@ import java.util.List;
 /**
  * 题库题目关联服务
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://www.code-nav.cn">编程导航学习圈</a>
+ * @author pickyboy
  */
 public interface QuestionBankQuestionService extends IService<QuestionBankQuestion> {
 
@@ -37,7 +35,7 @@ public interface QuestionBankQuestionService extends IService<QuestionBankQuesti
      * @return
      */
     QueryWrapper<QuestionBankQuestion> getQueryWrapper(QuestionBankQuestionQueryRequest questionBankQuestionQueryRequest);
-    
+
     /**
      * 获取题库题目关联封装
      *
@@ -76,4 +74,19 @@ public interface QuestionBankQuestionService extends IService<QuestionBankQuesti
      * @return
      */
     void batchRemoveQuestionsFromBank(List<Long> questionIdList, Long questionBankId);
+
+    /**
+     * 批量添加题目到题库（带缓存清除）
+     * @param questionIdList
+     * @param questionBankId
+     * @param loginUser
+     */
+    void batchAddQuestionsToBankWithCache(List<Long> questionIdList, Long questionBankId, User loginUser);
+
+    /**
+     * 批量移除题目题库关联（带缓存清除）
+     * @param questionIdList
+     * @param questionBankId
+     */
+    void batchRemoveQuestionsFromBankWithCache(List<Long> questionIdList, Long questionBankId);
 }
