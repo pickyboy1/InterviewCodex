@@ -115,6 +115,20 @@ spring:
         session-stat-enable: true
         # Session的最大统计个数
         session-stat-max-count: 1000
+  cloud:
+    sentinel:
+      transport:
+        dashboard: localhost:8131
+        port: 8719
+      datasource:
+        ds:
+          nacos:
+            username: nacos
+            password: nacos
+            server-addr: localhost:8848
+            data-id: ${spring.application.name}-rules.json # Nacos 中的配置 ID
+            rule-type: flow
+            data-type: json
 
   # Redis 配置
   redis:

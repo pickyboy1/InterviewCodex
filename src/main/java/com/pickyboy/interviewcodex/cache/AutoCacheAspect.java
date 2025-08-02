@@ -26,6 +26,7 @@ import org.springframework.stereotype.Component;
 import javax.annotation.Resource;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 
@@ -42,6 +43,8 @@ public class AutoCacheAspect {
     private final RedissonClient redissonClient;
 
     private final ObjectMapper objectMapper;
+
+    private final Random random = new Random();
 
     public AutoCacheAspect(RedissonClient redissonClient, ObjectMapper objectMapper) {
         this.redissonClient = redissonClient;
@@ -108,11 +111,17 @@ public class AutoCacheAspect {
             }
         }
 
-        // 2. L2 分布式缓存查询
+                // 2. L2 分布式缓存查询
         RBucket<String> bucket = redissonClient.getBucket(cacheKey);
         String jsonValue = bucket.get();
         if (jsonValue != null) {
             log.info("L2 Cache Hit: {}", cacheKey);
+
+            // 先检查是否为空值占位符，避免反序列化异常
+            if (isNullPlaceholder(jsonValue)) {
+                return jsonValue; // 返回占位符，让上层逻辑处理
+            }
+
             MethodSignature signature = (MethodSignature) joinPoint.getSignature();
             Method method = signature.getMethod();
             Type genericReturnType = method.getGenericReturnType();
@@ -121,7 +130,7 @@ public class AutoCacheAspect {
             if (redisResult != null) {
                 // L2缓存命中,尝试智能设置本地缓存
                 if(autoCache.enableL1()) {
-                JdHotKeyStore.smartSet(cacheKey, redisResult);
+                    JdHotKeyStore.smartSet(cacheKey, redisResult);
                 }
                 return redisResult;
             }
@@ -212,7 +221,7 @@ public class AutoCacheAspect {
         return result;
     }
 
-        /**
+            /**
      * 缓存结果，包括null值的防穿透处理
      */
     private void cacheResult(String cacheKey, Object result, AutoCache autoCache) {
@@ -220,21 +229,47 @@ public class AutoCacheAspect {
             // 缓存空值，设置较短的过期时间防止缓存穿透
             String nullPlaceholder = createNullPlaceholder();
             int nullTtl = autoCache.nullTtl() > 0 ? autoCache.nullTtl() : 60; // 默认60秒
+            // 空值缓存也可以添加随机时间，但范围较小
+            int finalNullTtl = addRandomExpireTime(nullTtl, Math.min(autoCache.randomExpireRange(), 30));
 
-            redissonClient.getBucket(cacheKey).set(nullPlaceholder, nullTtl, TimeUnit.SECONDS);
-            log.debug("Cached null value for key: {} with TTL: {}s", cacheKey, nullTtl);
+            redissonClient.getBucket(cacheKey).set(nullPlaceholder, finalNullTtl, TimeUnit.SECONDS);
+            log.debug("Cached null value for key: {} with TTL: {}s (base: {}s)", cacheKey, finalNullTtl, nullTtl);
         } else {
             // 缓存正常值（序列化后存储）
             String jsonToCache = serialize(result);
-            int ttl = autoCache.expireTime();
-            redissonClient.getBucket(cacheKey).set(jsonToCache, ttl, TimeUnit.SECONDS);
-            log.debug("Cached result for key: {} with TTL: {}s", cacheKey, ttl);
+            int baseTtl = autoCache.expireTime();
+            // 添加随机过期时间防止缓存雪崩
+            int finalTtl = addRandomExpireTime(baseTtl, autoCache.randomExpireRange());
+
+            redissonClient.getBucket(cacheKey).set(jsonToCache, finalTtl, TimeUnit.SECONDS);
+            log.debug("Cached result for key: {} with TTL: {}s (base: {}s, random range: {}s)",
+                     cacheKey, finalTtl, baseTtl, autoCache.randomExpireRange());
 
             // 仅在启用L1缓存时设置本地缓存
             if (autoCache.enableL1()) {
                 JdHotKeyStore.smartSet(cacheKey, result);
             }
         }
+    }
+
+    /**
+     * 添加随机过期时间，防止缓存雪崩
+     *
+     * @param baseTtl 基础过期时间（秒）
+     * @param randomRange 随机时间范围（秒），为0表示不添加随机时间
+     * @return 最终过期时间（秒）
+     */
+    private int addRandomExpireTime(int baseTtl, int randomRange) {
+        if (randomRange <= 0) {
+            return baseTtl;
+        }
+
+        // 生成 [0, randomRange] 范围内的随机数
+        int randomSeconds = random.nextInt(randomRange + 1);
+        int finalTtl = baseTtl + randomSeconds;
+
+        log.debug("Random expire time: base={}s, random={}s, final={}s", baseTtl, randomSeconds, finalTtl);
+        return finalTtl;
     }
 
     /**
@@ -248,7 +283,14 @@ public class AutoCacheAspect {
      * 检查是否为空值占位符
      */
     private boolean isNullPlaceholder(Object value) {
-        return value instanceof String && ((String) value).startsWith("NULL_PLACEHOLDER_");
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof String) {
+            String strValue = (String) value;
+            return strValue.startsWith("NULL_PLACEHOLDER_");
+        }
+        return false;
     }
 
     // --- 辅助方法 ---
@@ -276,14 +318,28 @@ public class AutoCacheAspect {
         }
     }
 
-    // 反序列化方法也变得非常通用
+    // 反序列化方法，优雅处理各种异常情况
     private Object deserialize(String jsonValue, Type returnType) {
+        // 空值检查
+        if (jsonValue == null || jsonValue.trim().isEmpty()) {
+            log.debug("Json value is null or empty, returning null");
+            return null;
+        }
+
+        // 空值占位符检查（双重保险）
+        if (isNullPlaceholder(jsonValue)) {
+            log.debug("Detected null placeholder during deserialization: {}", jsonValue);
+            return jsonValue; // 返回占位符字符串，让上层逻辑处理
+        }
+
         try {
             TypeFactory typeFactory = objectMapper.getTypeFactory();
             JavaType javaType = typeFactory.constructType(returnType);
             return objectMapper.readValue(jsonValue, javaType);
         } catch (Exception e) {
-            log.error("Deserialization failed for key", e);
+            log.warn("Deserialization failed for json: {}, returning null. Error: {}",
+                     jsonValue.length() > 100 ? jsonValue.substring(0, 100) + "..." : jsonValue,
+                     e.getMessage());
             return null;
         }
     }

@@ -97,6 +97,12 @@
             <version>2021.0.5.0</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-datasource-nacos</artifactId>
+            <version>1.8.6</version>
+        </dependency>
+
         <!--Nacos配置中心-->
         <dependency>
             <groupId>com.alibaba.boot</groupId>

@@ -160,7 +160,7 @@ public class QuestionBankServiceImpl
 
     @Override
     // 注解只能接受编译时常量，还是只能硬编码场景，不能通过枚举的get方法直接获得，不过枚举可以作为参考
-    @AutoCache(scene = "bank_detail", keyExpression = "#id + '_' + #needList")
+    @AutoCache(scene = "bank_detail", keyExpression = "#id + '_' + #needList", randomExpireRange = 120)
     public QuestionBankVO getCachedQuestionBankVO(Long id, boolean needList) {
         QuestionBank questionBank = getById(id);
         // 如果题库不存在，返回null，让缓存穿透防护机制处理

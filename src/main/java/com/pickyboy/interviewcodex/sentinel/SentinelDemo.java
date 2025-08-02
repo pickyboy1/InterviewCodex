@@ -10,9 +10,14 @@ import com.alibaba.csp.sentinel.slots.block.flow.FlowRuleManager;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ *
+ * 编码声明资源示例
+ */
 public class SentinelDemo {
 
     public static void main(String[] args) {
+
         // 配置限流规则
         initFlowRules();
         while (true) {

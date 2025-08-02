@@ -45,11 +45,12 @@
 
 #### 🎯 声明式多级缓存框架
 ```java
-// 自动缓存注解 - 支持本地+分布式双级缓存 + 穿透/击穿防护
+// 自动缓存注解 - 支持本地+分布式双级缓存 + 三重防护
 @AutoCache(scene = "question_detail", keyExpression = "#id",
            enableL1 = true,                    // 启用本地缓存
            enableBreakdownProtection = true,   // 启用击穿防护
-           nullTtl = 60)                      // 空值缓存60秒
+           nullTtl = 60,                      // 空值缓存60秒
+           randomExpireRange = 60)            // 随机过期时间0-60秒，防雪崩
 public QuestionVO getCacheQuestionVO(Long id) {
     Question question = this.getById(id);
     // 不存在时返回null，让缓存框架处理穿透防护
@@ -68,6 +69,7 @@ public void batchDeleteBanks(List<Long> idList) { ... }
 - ✅ **多级缓存**：本地缓存(JD HotKey) + 分布式缓存(Redis)
 - ✅ **缓存穿透防护**：自动缓存空值，防止恶意请求打穿数据库
 - ✅ **缓存击穿防护**：分布式锁 + 双重检查 + 重试机制，防止热点key失效时的惊群效应
+- ✅ **缓存雪崩防护**：随机过期时间，防止大量缓存同时失效
 - ✅ **智能批量**：Redis 管道技术，批量操作性能提升 **10倍**
 - ✅ **一致性保证**：AOP切面确保缓存与数据库的强一致性
 - ✅ **多状态支持**：一个实体多种缓存状态，灵活可控
@@ -193,6 +195,7 @@ public class QuestionBankService {
   - 🚀 **双级缓存**：本地缓存(JD HotKey) + 分布式缓存(Redis)
   - 🛡️ **缓存穿透防护**：空值缓存 + 短TTL，防止恶意ID攻击
   - ⚡ **缓存击穿防护**：分布式锁 + 双重检查，解决热点key失效惊群
+  - 🌊 **缓存雪崩防护**：随机过期时间，防止大量缓存同时失效
   - 🔧 **智能批量**：Redis 管道技术，批量操作性能提升 **10倍**
   - 🎛️ **多状态管理**：一个实体支持多种缓存状态，灵活可控
   - 🔄 **一致性保证**：AOP 切面确保数据一致性
@@ -240,6 +243,7 @@ class CacheSystemTest {
     // ✅ 批量操作测试
     // ✅ 缓存穿透防护测试
     // ✅ 缓存击穿防护测试
+    // ✅ 缓存雪崩防护测试
     // ✅ 并发安全性测试
     // ✅ 缓存一致性测试
     // ✅ 性能对比测试

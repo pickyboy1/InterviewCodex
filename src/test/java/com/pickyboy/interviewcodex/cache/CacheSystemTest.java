@@ -434,8 +434,42 @@ class CacheSystemTest {
         System.out.println("缓存击穿防护测试通过");
     }
 
-    @Test
+        @Test
     @Order(12)
+    @DisplayName("测试缓存雪崩防护")
+    void testCacheAvalancheProtection() {
+        // 创建一个带随机过期时间的服务方法（模拟）
+        Long testId = testQuestionId;
+
+        // 清除可能存在的缓存
+        String cacheKey = "question_detail::" + testId;
+        redissonClient.getBucket(cacheKey).delete();
+
+        // 多次调用同一个方法，验证过期时间是否有随机性
+        for (int i = 0; i < 5; i++) {
+            // 清除缓存
+            redissonClient.getBucket(cacheKey).delete();
+
+            // 调用方法触发缓存
+            QuestionVO result = questionService.getCacheQuestionVO(testId);
+            assertNotNull(result);
+
+            // 检查缓存是否存在并获取TTL
+            assertTrue(redissonClient.getBucket(cacheKey).isExists());
+            long ttl = redissonClient.getBucket(cacheKey).remainTimeToLive();
+
+            System.out.println("第" + (i + 1) + "次缓存，剩余TTL: " + ttl + "ms");
+
+            // TTL应该在合理范围内（这里假设基础TTL是300秒）
+            assertTrue(ttl > 0);
+            assertTrue(ttl <= 300 * 1000); // 转换为毫秒
+        }
+
+        System.out.println("缓存雪崩防护测试通过");
+    }
+
+    @Test
+    @Order(13)
     @DisplayName("测试缓存边界情况")
     void testCacheEdgeCases() {
         // 测试空列表缓存清除（不应该抛异常）

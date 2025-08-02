@@ -54,6 +54,18 @@ public @interface AutoCache {
     public boolean enableBreakdownProtection() default true;
 
     /**
+     * 随机过期时间范围（秒）
+     * 用于防止缓存雪崩，在基础过期时间上添加 [0, randomExpireRange] 的随机值
+     * 默认为0，表示不使用随机过期时间
+     *
+     * 例如：expireTime=3600, randomExpireRange=300
+     * 实际过期时间将在 [3600, 3900] 秒之间随机
+     *
+     * @return 随机过期时间的最大值（秒）
+     */
+    public int randomExpireRange() default 0;
+
+    /**
      * 是否启用L1缓存（本地缓存）
      * @return
      */

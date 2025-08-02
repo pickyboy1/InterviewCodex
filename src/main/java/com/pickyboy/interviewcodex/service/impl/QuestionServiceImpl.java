@@ -458,7 +458,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     }
 
     @Override
-    @AutoCache(scene = "question_detail",keyExpression = "#id")
+    @AutoCache(scene = "question_detail", keyExpression = "#id", randomExpireRange = 60)
     public QuestionVO getCacheQuestionVO(long id) {
         // 1. 核心数据查询
         Question question = this.getById(id);
