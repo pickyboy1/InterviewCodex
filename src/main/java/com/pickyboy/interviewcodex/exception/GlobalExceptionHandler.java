@@ -33,10 +33,25 @@ public class GlobalExceptionHandler {
     }
 
     // Sa-Token相关异常处理
+    // 无角色异常处理
     @ExceptionHandler(NotRoleException.class)
     public BaseResponse<?> notRoleExceptionHandler(NotRoleException e) {
         log.error("NotRoleException", e);
-        return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, "无权限");
+        return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, "权限不足");
+    }
+
+    // 无权限异常处理
+    @ExceptionHandler(NotPermissionException.class)
+    public BaseResponse<?> notPermissionExceptionHandler(NotPermissionException e) {
+        log.error("NotPermissionException", e);
+        return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, "权限不足");
+    }
+
+    // 未登录异常处理
+    @ExceptionHandler(NotLoginException.class)
+    public BaseResponse<?> notLoginExceptionHandler(NotLoginException e) {
+        log.error("NotLoginException", e);
+        return ResultUtils.error(ErrorCode.NOT_LOGIN_ERROR, "当前未登录,请先登录");
     }
 
     // sentinel 限流异常处理
@@ -46,15 +61,4 @@ public class GlobalExceptionHandler {
         return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "系统繁忙,请稍后再试");
     }
 
-    @ExceptionHandler(NotPermissionException.class)
-    public BaseResponse<?> notPermissionExceptionHandler(NotPermissionException e) {
-        log.error("NotPermissionException", e);
-        return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, "无权限");
-    }
-
-    @ExceptionHandler(NotLoginException.class)
-    public BaseResponse<?> notLoginExceptionHandler(NotLoginException e) {
-        log.error("NotLoginException", e);
-        return ResultUtils.error(ErrorCode.NOT_LOGIN_ERROR, "未登录");
-    }
 }

@@ -120,6 +120,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 3. 记录用户的登录态
         // request.getSession().setAttribute(USER_LOGIN_STATE, user);
         // Sa-Token 登录
+        // 如果要开启封禁,取消注释
+        /*
+         * if(StpUtil.isDisable(user.getId())){
+         * throw new BusinessException(ErrorCode.NO_AUTH_ERROR,"账号被封禁,你无法登录");
+         * }
+         */
         StpUtil.login(user.getId(), DeviceUtils.getRequestDevice( request));
         StpUtil.getSession().set(USER_LOGIN_STATE,user);
         return this.getLoginUserVO(user);
@@ -214,9 +220,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public boolean isAdmin(HttpServletRequest request) {
         // 仅管理员可查询
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        User user = (User) userObj;
-        return isAdmin(user);
+        return StpUtil.hasRole(UserRoleEnum.ADMIN.getValue());
     }
 
     @Override
@@ -231,7 +235,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public boolean userLogout(HttpServletRequest request) {
-        StpUtil.isLogin();
+        StpUtil.checkLogin();
         StpUtil.logout();
 //        if (request.getSession().getAttribute(USER_LOGIN_STATE) == null) {
 //            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");

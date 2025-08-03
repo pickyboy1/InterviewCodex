@@ -13,7 +13,7 @@ import java.util.Map;
  */
 public class BlackIpUtils {
 
-    private static BitMapBloomFilter bloomFilter;
+    private static volatile BitMapBloomFilter bloomFilter;
 
     public  static boolean isBlackIp(String ip) {
         return bloomFilter.contains(ip);
