@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- =============================================================== -->
+    <!-- 1. 项目基本坐标 (GAV) -->
+    <!-- =============================================================== -->
+    <groupId>com.pickyboy</groupId>
+    <artifactId>pickyboy-common</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <!-- packaging 必须为 pom，表明它是一个父模块/聚合模块，不产生实际的 jar 包 -->
+    <packaging>pom</packaging>
+
+    <!--
+        设计说明：
+        为什么不直接继承 spring-boot-starter-parent?
+        1. Maven 是单继承的。本项目(pickyboy-common)自身需要作为所有子模块(如 guardian-starter)的父模块，
+           因此不能再继承其他的 parent。
+        2. 通过在 dependencyManagement 中导入 spring-boot-dependencies (BOM)，我们可以获得与继承 parent
+           同样效果的依赖版本管理，同时保持了项目结构的灵活性和独立性。这是构建通用库和复杂多模块项目的最佳实践。
+    -->
+
+    <!-- =============================================================== -->
+    <!-- 2. 子模块列表 -->
+    <!-- =============================================================== -->
+    <!-- 未来创建的所有子模块（如 guardian-spring-boot-starter）都需要在这里声明 -->
+    <modules>
+        <module>guardian-spring-boot-starter</module>
+    </modules>
+
+    <!-- =============================================================== -->
+    <!-- 3. 属性配置 (Properties) -->
+    <!-- =============================================================== -->
+    <!-- 在这里集中定义版本号和配置，方便所有子模块统一管理和升级 -->
+    <properties>
+        <!-- 项目构建相关配置 -->
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- 核心框架版本 -->
+        <spring-boot.version>2.7.2</spring-boot.version>
+
+        <!-- 公共工具库版本 -->
+        <lombok.version>1.18.36</lombok.version>
+        <hutool.version>5.8.8</hutool.version>
+        <guava.version>32.0.1-jre</guava.version>
+    </properties>
+
+    <!-- =============================================================== -->
+    <!-- 4. 依赖版本管理 (Dependency Management) -->
+    <!-- =============================================================== -->
+    <!-- 这是父 POM 最核心的部分。这里声明的依赖不会被直接引入到任何模块， -->
+    <!-- 而是为所有子模块提供一个“版本清单”。子模块在引入这些依赖时，无需再指定版本号。-->
+    <dependencyManagement>
+        <dependencies>
+            <!-- 引入 Spring Boot 的官方依赖清单 (BOM - Bill of Materials) -->
+            <!-- 这样，所有 Spring Boot 相关的依赖版本都会由它来统一管理，我们无需再关心 -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- 管理我们自己的公共工具库版本 -->
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-all</artifactId>
+                <version>${hutool.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${guava.version}</version>
+            </dependency>
+
+            <!--
+              管理 spring-boot-configuration-processor。
+              将其放在 dependencyManagement 中是最佳实践，
+              这样具体的 starter 子模块可以按需引入它，而无需指定版本。
+            -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-configuration-processor</artifactId>
+                <version>${spring-boot.version}</version>
+                <optional>true</optional>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+
+    <!-- =============================================================== -->
+    <!-- 5. 构建配置 (Build) -->
+    <!-- =============================================================== -->
+    <build>
+        <!-- 插件版本管理 (Plugin Management) -->
+        <!-- 与 dependencyManagement 类似，这里用于统一管理所有构建插件的版本和配置 -->
+        <pluginManagement>
+            <plugins>
+                <!-- 配置 Spring Boot Maven 插件 -->
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring-boot.version}</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>repackage</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <!--
+                  配置编译插件。
+                  注意：由于已在 <properties> 中定义了 maven.compiler.source 和 maven.compiler.target，
+                  现代的 maven-compiler-plugin (3.6.0+) 会自动识别它们。
+                  因此，这里的 <configuration> 块可以省略，以保持 pom 的简洁。
+                  此处保留是为了明确展示配置。
+                -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.8.1</version>
+                    <configuration>
+                        <source>${maven.compiler.source}</source>
+                        <target>${maven.compiler.target}</target>
+                        <encoding>${project.build.sourceEncoding}</encoding>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>
