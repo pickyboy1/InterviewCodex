@@ -21,4 +21,13 @@ public @interface Rule {
     String level();
 
     String description() default "";
+
+    /**
+     * 规则是否为持续触发模式。
+     * - false (默认): 单次模式，仅在计数值正好等于 count 时触发。
+     * - true: 持续模式，在计数值大于或等于 count 时都会触发。
+     *
+     * @return 是否持续触发
+     */
+    boolean continuous() default false;
 }

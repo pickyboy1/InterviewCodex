@@ -29,36 +29,22 @@ public @interface GuardianCheck {
      * 用于定位访问主体的 Key，支持 Spring Expression Language (SpEL)。
      * 例如：#userId, #request.getRemoteAddr(), #loginUser.id
      * 如果指定了keyProvider，此参数将作为额外参数传递给KeyProvider
+     * ip,自动获取ip
+     * userId,自动获取用户ID
      * @return SpEL 表达式字符串或其他Key表达式
      */
     String key();
 
-    /**
-     * 指定要使用的KeyProvider名称。
-     * 可选值：
-     * - "user": 自动获取用户ID
-     * - "ip": 自动获取客户端IP地址
-     * - "spel": SpEL表达式解析（默认）
-     * - "auto": 根据key表达式自动选择
-     * - 自定义Provider名称
-     *
-     * @return KeyProvider名称
-     */
-    String keyProvider() default "";
-
-    /**
-     * 计数器类型，默认使用配置文件中的默认类型
-     * @return 计数器类型
-     */
-    String counterType() default "";
 
     /**
      * 频率计算的时间窗口大小。
-     * 默认为 1。
+     * <p>
+     * <b>关键改动</b>: 默认值为 -1 (哨兵值)。
+     * 如果为 -1，框架将使用 application.yml 中配置的全局默认值 (guardian.default-window-size)。
      *
      * @return 时间数值
      */
-    int windowSize() default 1;
+    int windowSize() default -1;
 
     /**
      * 时间窗口的单位。
@@ -68,11 +54,6 @@ public @interface GuardianCheck {
      */
     TimeUnit timeUnit() default TimeUnit.MINUTES;
 
-    /**
-     * 过期时间（秒），默认为180秒
-     * @return 过期时间
-     */
-    long expiration() default 180;
 
 
     Rule[] rules() default {};

@@ -1,6 +1,5 @@
-package com.pickyboy.guardian.model;
+package com.pickyboy.guardian.model.response;
 
-import com.pickyboy.guardian.model.rule.AlertInfo;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,7 +20,7 @@ public class GuardianCheckResult {
 
 
     /**
-     * 触发检查的防护定义名称 (对应 @GuardianCheck 的 scene)。
+     * 触发场景
      */
     private String scene;
 
@@ -36,20 +35,10 @@ public class GuardianCheckResult {
      */
     private long currentCount;
 
-    /**
-     * 距离下一个最高阈值还剩余的次数。
-     * 如果已达到最高阈值，则为 0。
-     */
-    private long remainingCount;
+
 
     /**
-     * 计数器重置的剩余时间
-     * -1表示不需要重置
-     */
-    private long timeToReset;
-
-    /**
-     * 当 allowed 为 false 时，触发的最高级别告警信息。
+     * 触发的告警信息。
      */
     private AlertInfo triggeredAlert;
 
@@ -63,12 +52,11 @@ public class GuardianCheckResult {
     /**
      * 快速创建允许通过的结果
      */
-    public static GuardianCheckResult allowed(String scene , long currentCount, long remainingCount) {
+    public static GuardianCheckResult allowed(String scene , long currentCount) {
         return GuardianCheckResult.builder()
                 .scene(scene)
                 .allowed(true)
                 .currentCount(currentCount)
-                .remainingCount(remainingCount)
                 .build();
     }
 
@@ -81,6 +69,16 @@ public class GuardianCheckResult {
                 .allowed(false)
                 .currentCount(currentCount)
                 .errorMessage(errorMessage)
+                .build();
+    }
+
+    public static GuardianCheckResult denied(String scene , String errorMessage, long currentCount,AlertInfo alert) {
+        return GuardianCheckResult.builder()
+                .scene(scene)
+                .allowed(false)
+                .currentCount(currentCount)
+                .errorMessage(errorMessage)
+                .triggeredAlert(alert)
                 .build();
     }
 }

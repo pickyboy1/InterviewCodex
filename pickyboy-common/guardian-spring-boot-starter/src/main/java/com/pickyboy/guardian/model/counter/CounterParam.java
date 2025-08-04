@@ -18,6 +18,12 @@ import java.util.concurrent.TimeUnit;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CounterParam {
+
+    /**
+     * 业务场景
+     */
+    private String scene;
+
     /**
      * 计数器键
      */
@@ -33,23 +39,12 @@ public class CounterParam {
      */
     private TimeUnit timeUnit;
 
-    /**
-     * 过期时间（秒）
-     */
-    private long expiration;
 
-    /**
-     * 计数策略类型
-     */
-    private String counterType;
 
     /**
      * 扩展参数
      */
     private Map<String, Object> extraParams;
 
-    /**
-     * 业务场景
-     */
-    private String scene;
+
 }

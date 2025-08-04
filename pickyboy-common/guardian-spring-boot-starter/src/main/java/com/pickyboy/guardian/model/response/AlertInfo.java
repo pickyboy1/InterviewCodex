@@ -1,4 +1,4 @@
-package com.pickyboy.guardian.model.rule;
+package com.pickyboy.guardian.model.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,6 +18,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AlertInfo {
+
     /**
      * 告警级别
      */
@@ -28,15 +29,11 @@ public class AlertInfo {
      */
     private long threshold;
 
-    /**
-     * 当前计数
-     */
-    private long currentCount;
 
     /**
-     * 执行的动作类型
+     * 执行的策略列表
      */
-    private List<String> actionTypes;
+    private List<String> strategies;
 
     /**
      * 告警时间

@@ -38,4 +38,10 @@ public class GuardianRule {
      * 描述信息
      */
     private String description;
+
+    /**
+     * 是否为持续触发模式。
+     */
+    @Builder.Default
+    private boolean continuous = false;
 }

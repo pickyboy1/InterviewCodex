@@ -1,16 +1,19 @@
-package com.pickyboy.guardian.core.counter;
+package com.pickyboy.guardian.core.counter.impl;
 
 import cn.hutool.core.util.StrUtil;
-import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.pickyboy.guardian.config.GuardianProperties;
+import com.pickyboy.guardian.core.counter.Counter;
 import com.pickyboy.guardian.model.counter.CounterParam;
 import com.pickyboy.guardian.model.constant.GuardianConstants;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
-import java.time.Instant;
+import javax.annotation.PostConstruct;
+import javax.annotation.Resource;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -25,10 +28,30 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Slf4j
 @Component
+@ConditionalOnClass(Caffeine.class)
+@ConditionalOnProperty(name = "guardian.default-counter-type", havingValue = GuardianConstants.COUNTER_TYPE_LOCAL)
 public class LocalCounter implements Counter {
 
     // 全局最大缓存条目数，可以从配置文件中读取
-    private static final long MAXIMUM_CACHE_SIZE = 10000L;
+    private static long maximumCacheSize;
+
+    /**
+     * 注入我们统一的配置属性 Bean。
+     */
+    @Resource
+    private GuardianProperties guardianProperties;
+
+    /**
+     * 核心：使用 @PostConstruct 注解。
+     * 这个方法会在 Spring 完成该 Bean 的所有依赖注入后，初始化之前被调用。
+     * 这是初始化静态成员的最佳时机。
+     */
+    @PostConstruct
+    public void init() {
+        // 将从配置 Bean 中读取到的值，赋给静态成员
+        maximumCacheSize = guardianProperties.getLocalCounterMaxSize();
+        log.info("Guardian LocalCounter initialized with maximum size: {}", maximumCacheSize);
+    }
 
     /**
      * 核心：使用 ConcurrentHashMap 来存储不同过期时间的缓存实例。
@@ -92,7 +115,7 @@ public class LocalCounter implements Counter {
         return caches.computeIfAbsent(durationInSeconds, duration -> {
             log.info("为 {} 秒的窗口创建新的 Caffeine 缓存实例", duration);
             return Caffeine.newBuilder()
-                    .maximumSize(MAXIMUM_CACHE_SIZE)
+                    .maximumSize(maximumCacheSize)
                     // 使用动态的过期时间
                     .expireAfterWrite(duration, TimeUnit.SECONDS)
                     // 定义加载逻辑：当 Key 不存在时，创建一个初始值为 0 的 AtomicLong

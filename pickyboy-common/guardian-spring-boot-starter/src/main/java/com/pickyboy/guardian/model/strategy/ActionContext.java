@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,7 +29,7 @@ public class ActionContext {
     /**
      * 本次触发的具体规则。
      */
-    private GuardianRule triggeredRule;
+    private List<GuardianRule> triggeredRules;
 
     /**
      * 触发时的当前计数值。

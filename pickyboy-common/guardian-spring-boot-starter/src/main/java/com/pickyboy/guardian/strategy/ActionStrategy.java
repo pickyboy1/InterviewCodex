@@ -22,21 +22,14 @@ public interface ActionStrategy {
      */
     String getType();
 
-    /**
-     * 获取策略描述
-     *
-     * @return 策略描述
-     */
-    default String getDescription() {
-        return getType();
-    }
 
     /**
-     * 是否启用异步执行
+     * 是否快速失败。
+     * 如果返回 true，表示执行此策略后应立即中断原始方法的执行。
      *
-     * @return 是否异步
+     * @return 默认为 false (不中断)
      */
-    default boolean isAsync() {
+    default boolean failFast() {
         return false;
     }
 }

@@ -21,10 +21,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class GuardianDefinition {
-    /**
-     * 规则名称
-     */
-    private String name;
 
     /**
      * 计数器参数
@@ -43,14 +39,5 @@ public class GuardianDefinition {
     @Builder.Default
     private String errorMessage = GuardianConstants.DEFAULT_ERROR_MESSAGE;
 
-    /**
-     * 是否启用
-     */
-    @Builder.Default
-    private boolean enabled = true;
 
-    /**
-     * 描述信息
-     */
-    private String description;
 }
