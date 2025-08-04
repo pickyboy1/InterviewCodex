@@ -17,4 +17,86 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <dependencies>
+        <!--
+            引入 Spring Boot AOP Starter。
+            这是实现我们核心切面功能的关键。
+            它会自动传递引入 spring-boot-starter，其中包含了 autoconfigure 和 context 等核心依赖。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
+        <!--
+            引入 Redisson Spring Boot Starter。
+            这是我们默认计数器 RedisCounter 的实现基础。
+            它会根据项目的 application.yml 自动配置好 RedissonClient。
+        -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-boot-starter</artifactId>
+            <version>3.21.0</version>
+        </dependency>
+
+        <!--Sa-Token-->
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-spring-boot-starter</artifactId>
+            <version>1.44.0</version>
+        </dependency>
+
+        <!--
+            引入 Lombok 以简化代码。
+            scope 设置为 provided，因为 Lombok 注解在编译后就不会存在了，
+            我们不希望将 Lombok 的 jar 包传递给引入本 starter 的项目。
+        -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!--
+            引入 Caffeine 缓存库，用于本地计数器实现
+        -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+            <version>3.1.5</version>
+        </dependency>
+
+        <!--
+            引入 Hutool 工具库，提供字符串等工具方法
+        -->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-core</artifactId>
+            <version>5.8.18</version>
+        </dependency>
+
+        <!--
+            引入 Spring Boot 配置处理器。
+            它会在编译时扫描 @ConfigurationProperties 注解，并生成元数据文件，
+            从而为使用者提供 application.yml 中的智能提示。
+            optional 设置为 true，因为它不是项目运行时的必需品。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!--
+            引入 Spring Boot 测试 Starter。
+            用于为我们的 Guardian 功能编写单元测试和集成测试。
+            scope 设置为 test，确保它只在测试时生效。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
 </project>
