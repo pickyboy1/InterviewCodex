@@ -118,14 +118,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
         }
         // 3. 记录用户的登录态
+
         // request.getSession().setAttribute(USER_LOGIN_STATE, user);
+
         // Sa-Token 登录
         // 如果要开启封禁,取消注释
-        /*
-         * if(StpUtil.isDisable(user.getId())){
-         * throw new BusinessException(ErrorCode.NO_AUTH_ERROR,"账号被封禁,你无法登录");
-         * }
-         */
+
+          if(StpUtil.isDisable(user.getId())){
+          throw new BusinessException(ErrorCode.NO_AUTH_ERROR,"账号被封禁,你无法登录");
+          }
+
         StpUtil.login(user.getId(), DeviceUtils.getRequestDevice( request));
         StpUtil.getSession().set(USER_LOGIN_STATE,user);
         return this.getLoginUserVO(user);

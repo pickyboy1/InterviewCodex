@@ -189,7 +189,7 @@ sa-token:
 #  token 名
   token-name: interviewCodex
 #  token 有效期
-  timeout: 2592000 # token 有效期，单位秒
+  timeout: 36000 # token 有效期，单位秒
   active-timeout: -1 # token最低活跃频率,超过此时间没访问系统就会被冻结,默认-1,不限制
   is-concurrent: false # 是否允许同一账号多地同时登录
   is-share: true # 多人同时登陆,是否共用token
@@ -241,3 +241,32 @@ hotkey:
   caffeine-size: 10000
   batch-push-interval: 1000
   etcd-server: http://127.0.0.1:2379
+guardian:
+  default-counter-type: redis
+  enabled: true
+  default-window-size: 1
+  default-time-unit: minutes
+  default-error-message: "访问频率过高，请稍后再试"
+  local-counter-max-size: 10000
+  default-rules:
+    - count: 1
+      level: "INFO"
+      strategies:
+        - "logOnlyStrategy"
+    - count: 5
+      level: "WARN"
+      strategies:
+        - "emailActionStrategy"
+    - count: 6
+      level: "WARN"
+      strategies:
+        - "rejectActionStrategy"
+      continuous:  true
+    - count: 10
+      level: "CRITICAL"
+      strategies:
+        - "banActionStrategy"
+logging:
+  level:
+    # 将 com.pickyboy.guardian 包的日志级别设置为 DEBUG
+    com.pickyboy.guardian: DEBUG

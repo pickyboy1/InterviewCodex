@@ -14,23 +14,24 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 基于Redis的通用计数器
+ * 已经该用自定义注解
  *
  * @author pickyboy
  */
-@Slf4j
+/*@Slf4j
 @Service
 public class CounterManager {
     @Resource
     private RedissonClient redissonClient;
 
-    /**
+    *//**
      *
      * @param key 键
      * @param timeInterval 时间间隔
      * @param timeUnit 时间间隔单位
      * @param expirationTimeInSeconds 过期时间
      * @return
-     */
+     *//*
     public long incrAndGetCounter(String key, int timeInterval, TimeUnit timeUnit,long expirationTimeInSeconds){
         if(StrUtil.isBlank( key)){
             return 0;
@@ -73,34 +74,34 @@ public class CounterManager {
     }
 
     // 封装多种默认参数方法,供简化调用
-    /**
+    *//**
      * 按秒计数，并指定key的过期时间。
      * @param key 计数器的键
      * @param expirationTimeInSeconds key的过期时间（秒）
      * @return 当前计数值
-     */
+     *//*
     public long incrAndGetCounterPerSecond(String key, long expirationTimeInSeconds) {
         return incrAndGetCounter(key, 1, TimeUnit.SECONDS, expirationTimeInSeconds);
     }
 
     private static final long ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 
-    /**
+    *//**
      * 按分钟计数，使用默认的1天过期时间。
      * @param key 计数器的键
      * @return 当前计数值
-     */
+     *//*
     public long incrAndGetCounterPerMinute(String key) {
         return incrAndGetCounter(key, 1, TimeUnit.MINUTES, ONE_DAY_IN_SECONDS);
     }
 
 
-    /**
+    *//**
      * 按秒计数，使用默认的1天过期时间。
      * @param key 计数器的键
      * @return 当前计数值
-     */
+     *//*
     public long incrAndGetCounter(String key) {
         return incrAndGetCounter(key, 1, TimeUnit.SECONDS, ONE_DAY_IN_SECONDS);
     }
-}
+}*/

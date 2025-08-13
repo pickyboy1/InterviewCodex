@@ -13,6 +13,9 @@ import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.pickyboy.guardian.anotation.GuardianCheck;
+import com.pickyboy.guardian.anotation.Rule;
+import com.pickyboy.guardian.model.constant.GuardianConstants;
 import com.pickyboy.interviewcodex.annotation.AuthCheck;
 import com.pickyboy.interviewcodex.common.BaseResponse;
 import com.pickyboy.interviewcodex.common.DeleteRequest;
@@ -21,7 +24,6 @@ import com.pickyboy.interviewcodex.common.ResultUtils;
 import com.pickyboy.interviewcodex.constant.UserConstant;
 import com.pickyboy.interviewcodex.exception.BusinessException;
 import com.pickyboy.interviewcodex.exception.ThrowUtils;
-import com.pickyboy.interviewcodex.manager.CounterManager;
 import com.pickyboy.interviewcodex.model.dto.question.*;
 import com.pickyboy.interviewcodex.model.entity.Question;
 import com.pickyboy.interviewcodex.model.entity.QuestionBank;
@@ -59,9 +61,6 @@ public class QuestionController {
     @Resource
     private QuestionBankQuestionService questionBankQuestionService;
 
-    // Redis原子化计数工具
-    @Resource
-    private CounterManager counterManager;
 
     // region 基础增删改查
 
@@ -198,8 +197,8 @@ public class QuestionController {
      * 使用redis计数器,判断一定时间内的访问次数
      * @param loginUserId
      */
-    // todo: 扩展,key设为id + 业务名,对更多业务控制
-    private void crawlerDetect(long loginUserId){
+// 已迁移为Guardian自定义框架
+/*    private void crawlerDetect(long loginUserId){
         final int WARN_COUNT = 10;
         final int BAN_COUNT = 20;
         String key = String.format("user:access:%s",loginUserId);
@@ -218,7 +217,7 @@ public class QuestionController {
         if(count == WARN_COUNT){
             // 可以向管理员发邮件告警
         }
-    }
+    }*/
     /**
      * 根据 id 获取题目（封装类）
      *
@@ -226,14 +225,14 @@ public class QuestionController {
      * @return
      */
 
-    // todo： 增加限流
+    @GuardianCheck(scene = "question", key = "userId", windowSize = 60, timeUnit = TimeUnit.SECONDS, rules = {
+            @Rule(count = 10, level = GuardianConstants.ALERT_LEVEL_INFO, strategy = {GuardianConstants.STRATEGY_TYPE_LOG_ONLY}, description = "测试"),
+            @Rule(count = 20, level = GuardianConstants.ALERT_LEVEL_WARNING, strategy = {GuardianConstants.STRATEGY_TYPE_REJECT}, description = "测试",continuous = true),
+            @Rule(count = 30, level = GuardianConstants.ALERT_LEVEL_CRITICAL, strategy = {GuardianConstants.STRATEGY_TYPE_BAN}, description = "测试")
+    },errorMessage = "访问频率过高,恶意刷取将封号")
     @GetMapping("/get/vo")
     public BaseResponse<QuestionVO> getQuestionVOById(long id, HttpServletRequest request) {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
-        // 检测和处理爬虫
-        User loginUser = userService.getLoginUser(request);
-        crawlerDetect(loginUser.getId());
-
         // 查询数据库
         QuestionVO question = questionService.getCacheQuestionVO(id);
         ThrowUtils.throwIf(question == null, ErrorCode.NOT_FOUND_ERROR);

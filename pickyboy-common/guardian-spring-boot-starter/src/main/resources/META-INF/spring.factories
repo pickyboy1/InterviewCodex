@@ -1,2 +1,0 @@
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-com.pickyboy.guardian.config.GuardianAutoConfiguration

@@ -4,6 +4,7 @@ import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
 import cn.dev33.satoken.exception.NotRoleException;
 import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.pickyboy.guardian.exception.GuardianException;
 import com.pickyboy.interviewcodex.common.BaseResponse;
 import com.pickyboy.interviewcodex.common.ErrorCode;
 import com.pickyboy.interviewcodex.common.ResultUtils;
@@ -32,6 +33,12 @@ public class GlobalExceptionHandler {
         return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "系统错误");
     }
 
+    // Guardian 异常处理
+    @ExceptionHandler(GuardianException.class)
+    public BaseResponse<?> guardianExceptionHandler(GuardianException e) {
+        log.error("GuardianException",e);
+        return ResultUtils.error(ErrorCode.SYSTEM_ERROR,e.getMessage());
+    }
     // Sa-Token相关异常处理
     // 无角色异常处理
     @ExceptionHandler(NotRoleException.class)

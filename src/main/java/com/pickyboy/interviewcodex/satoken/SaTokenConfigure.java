@@ -21,6 +21,13 @@ public class SaTokenConfigure implements WebMvcConfigurer {
             StpUtil.checkLogin();
                 }))
                 .addPathPatterns("/**")
-                .excludePathPatterns("/user/login", "/user/register");
+                .excludePathPatterns("/user/login", "/user/register",
+                        "/doc.html",          // Knife4j UI 页面
+                        "/webjars/**",        // Knife4j 静态资源
+                        "/swagger-resources/**", // Swagger 资源
+                        "/v3/api-docs/**",      // OpenAPI v3 定义
+                        "/v2/api-docs/**",
+                        "/error"
+                        );      // OpenAPI v2 定义 (兼容));
     }
 }

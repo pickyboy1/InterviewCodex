@@ -43,6 +43,55 @@
 
 ### 🔧 自研核心组件
 
+#### 🛡️ Guardian访问控制框架
+```java
+// 一个注解即可实现复杂的访问控制策略
+@GuardianCheck(
+    scene = "user_register",           // 场景标识
+    key = "ip",                        // 限制维度：IP地址
+    windowSize = 1,                    // 时间窗口：1分钟
+    timeUnit = TimeUnit.MINUTES,
+    rules = {
+        @Rule(count = 5, strategies = "logOnlyStrategy", level = "INFO"),
+        @Rule(count = 10, strategies = "rejectActionStrategy", level = "WARN", continuous = true),
+        @Rule(count = 20, strategies = {"banUserStrategy", "emailActionStrategy"}, level = "CRITICAL", continuous = true)
+    },
+    errorMessage = "注册过于频繁，请稍后再试"
+)
+@PostMapping("/register")
+public Result userRegister(@RequestBody UserRegisterRequest request) {
+    // 业务代码完全不感知防护逻辑
+    return userService.register(request);
+}
+
+// 基于用户的复杂访问控制
+@GuardianCheck(
+    scene = "download_question",
+    key = "#user.id",                  // SpEL表达式获取用户ID
+    windowSize = 24,                   // 24小时窗口
+    timeUnit = TimeUnit.HOURS,
+    rules = {
+        @Rule(count = 100, strategies = "logOnlyStrategy", description = "下载量预警"),
+        @Rule(count = 200, strategies = "rejectActionStrategy", continuous = true, description = "限制下载"),
+        @Rule(count = 500, strategies = {"banUserStrategy", "emailActionStrategy"}, continuous = true, description = "账号封禁")
+    }
+)
+@GetMapping("/download/{questionId}")
+public ResponseEntity<Resource> downloadQuestion(@PathVariable Long questionId, @LoginUser User user) {
+    return questionService.downloadQuestion(questionId);
+}
+```
+
+**框架优势**：
+- ✅ **零侵入设计**：基于AOP切面，业务代码无感知
+- ✅ **声明式配置**：注解驱动，配置与代码分离
+- ✅ **分布式支持**：Redis + Lua脚本保证原子性
+- ✅ **高性能本地缓存**：Caffeine动态缓存管理
+- ✅ **智能Key生成**：支持IP、用户ID、SpEL表达式
+- ✅ **多级规则引擎**：单次/持续触发，灵活组合
+- ✅ **异步处置策略**：不阻塞主业务流程
+- ✅ **故障开放机制**：确保系统可用性
+
 #### 🎯 声明式多级缓存框架
 ```java
 // 自动缓存注解 - 支持本地+分布式双级缓存 + 三重防护
@@ -89,10 +138,6 @@ public class CacheUtils {
 }
 ```
 
-#### 📈 性能监控与统计
-- **缓存命中率监控**：实时统计各场景缓存命中率
-- **接口性能分析**：自动记录接口响应时间分布
-- **异常告警机制**：集成钉钉/企微告警，故障秒级响应
 
 ## 🏗️ 技术架构设计
 
@@ -108,6 +153,7 @@ public class CacheUtils {
 | **高可用**     | **Sentinel**                  | 流控熔断 + 系统负载保护                                 |
 |                | **Redisson**                  | 分布式锁 + 限流器 + 布隆过滤器                          |
 |                | **JD HotKey**                 | 热点探测 + 本地缓存                                     |
+| **安全防护**   | **Guardian Framework**        | 自研访问控制框架 + 声明式防爬反刷                       |
 | **配置中心**   | **Nacos**                     | 动态配置 + 服务发现                                     |
 | **监控告警**   | **Sentinel Dashboard**        | 实时监控 + 规则配置                                     |
 | **API文档**    | Knife4j (Swagger3)            | 自动生成交互式API文档                                   |
@@ -134,16 +180,26 @@ public class QuestionService {
 }
 ```
 
-#### 2. 🛡️ 立体防护体系
+#### 2. 🛡️ 多层防护体系 (Sentinel + Guardian)
 ```java
-// 流控 + 熔断 + 降级的完整示例
+// Sentinel系统级流控 + Guardian业务级防控的完整示例
 @GetMapping("/search")
 @SentinelResource(
     value = "question-search",
-    blockHandler = "handleBlock",    // 流控处理
-    fallback = "handleFallback"      // 异常降级
+    blockHandler = "handleBlock",      // Sentinel流控处理
+    fallback = "handleFallback"        // Sentinel异常降级
 )
-public Result<Page<Question>> search(@RequestParam String keyword) {
+@GuardianCheck(
+    scene = "search_question",
+    key = "#user.id",                  // Guardian业务级用户防控
+    windowSize = 1,
+    timeUnit = TimeUnit.MINUTES,
+    rules = {
+        @Rule(count = 20, strategies = "logOnlyStrategy"),
+        @Rule(count = 60, strategies = "rejectActionStrategy", continuous = true)
+    }
+)
+public Result<Page<Question>> search(@RequestParam String keyword, @LoginUser User user) {
     try {
         // L1: Elasticsearch 搜索
         return searchFromES(keyword);
@@ -153,16 +209,23 @@ public Result<Page<Question>> search(@RequestParam String keyword) {
     }
 }
 
-// 流控处理：返回限流提示
+// Sentinel流控处理：系统级限流
 public Result handleBlock(String keyword, BlockException ex) {
     return Result.error("系统繁忙，请稍后重试");
 }
 
-// 降级处理：返回默认结果
+// Sentinel降级处理：异常时返回默认结果
 public Result handleFallback(String keyword, Throwable ex) {
     return Result.success(getDefaultResult());
 }
+
+// Guardian会自动处理业务级限流，无需额外代码
 ```
+
+**防护层次说明**：
+- 🔧 **Sentinel层**：系统级QPS限流、熔断降级、热点参数防护
+- 🛡️ **Guardian层**：业务级用户行为控制、反爬虫、接口防刷
+- 🎯 **业务层**：多级数据源降级、缓存策略、异常处理
 
 #### 3. 🛡️ 安全防护机制
 ```java
@@ -215,7 +278,20 @@ public class QuestionBankService {
 
 ## 🎯 核心技术创新
 
-### 1. 自研多级缓存框架
+### 1. 自研Guardian访问控制框架
+- **设计理念**：声明式 + 零侵入 + 高性能 + 企业级防护
+- **核心特性**：
+  - 🎯 **注解驱动**：`@GuardianCheck` + `@Rule` 声明式防护
+  - 🚀 **双计数器架构**：Redis分布式 + Caffeine本地，性能与分布式兼得
+  - 🛡️ **智能Key生成**：IP、用户ID、SpEL表达式多维度支持
+  - ⚡ **原子计数操作**：Lua脚本保证Redis操作原子性，无并发问题
+  - 🌊 **多级规则引擎**：单次触发 + 持续触发，灵活的阈值-动作组合
+  - 🔧 **异步处置策略**：日志、告警、封号等策略异步执行，不阻塞业务
+  - 🎛️ **策略模式设计**：可插拔的处置策略，支持自定义扩展
+  - 🔄 **故障开放机制**：异常时允许通过，确保业务连续性
+  - 🎯 **配置化管理**：支持全局默认规则 + 注解个性化配置
+
+### 2. 自研多级缓存框架
 - **设计理念**：声明式 + 零侵入 + 高性能 + 企业级防护
 - **核心特性**：
   - 📝 **注解驱动**：`@AutoCache` + `@CacheEvict`
@@ -228,19 +304,118 @@ public class QuestionBankService {
   - 🔄 **一致性保证**：AOP 切面确保数据一致性
   - 🎯 **自适应优化**：热点探测 + 智能缓存策略
 
-### 2. 企业级搜索引擎
+### 3. 企业级搜索引擎
 - **多级降级**：ES → DB → Cache → Default
 - **智能建议**：Completion Suggester + 实时补全
 - **个性化推荐**：More Like This + 用户画像
 - **性能优化**：查询缓存 + 异步索引更新
 
-### 3. 高可用保障体系
+### 4. 高可用保障体系
 - **流量防护**：Sentinel 多维度流控
 - **熔断降级**：慢调用 + 异常比例 + 异常数量
 - **热点防护**：JD HotKey 自动探测 + 本地缓存
 - **配置中心**：Nacos 动态配置 + 实时更新
 
-### 4. 安全防护机制
+### 4. 自研Guardian访问控制框架
+基于自主研发的**Guardian访问控制框架**，在保留**Sentinel流控熔断**能力基础上，进一步实现了声明式、高度可扩展的安全防护体系：
+
+> 💡 **架构说明**：Guardian框架与Sentinel形成互补，Sentinel专注于系统级流控熔断，Guardian专注于业务级访问控制。两者配合使用，构建完整的多层防护体系。
+
+#### 🛡️ 核心防护能力
+- **反爬虫防护**：多维度访问频率控制，有效防止恶意爬虫大规模抓取
+- **接口防刷**：智能识别并阻止短信验证码、登录、抽奖等核心接口的恶意高频调用
+- **分布式限流**：基于Redis + Lua脚本的原子计数器，支持滑动时间窗口
+- **多级规则引擎**：支持"单次触发"和"持续触发"模式的复杂防护策略
+
+#### 🚀 声明式使用示例
+```java
+// 登录接口防爆破
+@GuardianCheck(
+    scene = "user_login",
+    key = "ip",
+    windowSize = 1,
+    timeUnit = TimeUnit.MINUTES,
+    rules = {
+        @Rule(count = 10, strategies = "logOnlyStrategy", level = "INFO"),
+        @Rule(count = 30, strategies = "rejectActionStrategy", level = "WARN", continuous = true),
+        @Rule(count = 100, strategies = {"rejectActionStrategy", "banUserStrategy"}, level = "CRITICAL", continuous = true)
+    }
+)
+@PostMapping("/login")
+public Result userLogin(@RequestBody UserLoginRequest request) {
+    // 业务逻辑，无需任何防护代码
+    return userService.login(request);
+}
+
+// 题目查看防爬虫
+@GuardianCheck(
+    scene = "view_question",
+    key = "#loginUser.id",
+    windowSize = 1,
+    timeUnit = TimeUnit.HOURS,
+    rules = {
+        @Rule(count = 100, strategies = "logOnlyStrategy"),
+        @Rule(count = 500, strategies = "rejectActionStrategy", continuous = true)
+    }
+)
+@GetMapping("/detail/{id}")
+public Result<QuestionVO> getQuestionDetail(@PathVariable Long id, @LoginUser User loginUser) {
+    return Result.success(questionService.getQuestionDetail(id));
+}
+
+// 复杂的用户行为控制
+@GuardianCheck(
+    scene = "submit_question",
+    key = "#user.id + '_' + #type",
+    windowSize = 1,
+    timeUnit = TimeUnit.HOURS,
+    rules = {
+        @Rule(count = 20, strategies = "logOnlyStrategy", description = "提交题目20次预警"),
+        @Rule(count = 50, strategies = "rejectActionStrategy", continuous = true, description = "限制提交"),
+        @Rule(count = 100, strategies = {"rejectActionStrategy", "emailActionStrategy"}, continuous = true, description = "邮件告警")
+    }
+)
+@PostMapping("/submit")
+public Result submitQuestion(@RequestBody QuestionAddRequest request, @LoginUser User user) {
+    return questionService.addQuestion(request);
+}
+```
+
+#### 🎯 框架技术特色
+- **零侵入设计**：基于AOP切面，业务代码完全无感知
+- **智能Key生成**：支持IP、用户ID、SpEL表达式等多种维度
+- **双计数器架构**：Redis分布式计数器 + Caffeine本地高性能计数器
+- **异步处置策略**：日志记录、邮件告警、用户封禁等策略异步执行，不阻塞业务
+- **多级规则引擎**：支持复杂的阈值-动作规则组合
+- **策略模式设计**：可插拔的处置策略，易于扩展自定义行为
+
+#### 🔧 配置化管理
+```yaml
+guardian:
+  enabled: true
+  default-counter-type: redis
+  default-window-size: 1
+  default-time-unit: MINUTES
+  default-error-message: "操作过于频繁，请稍后再试"
+  # 全局默认规则
+  default-rules:
+    - count: 50
+      level: "WARN"
+      strategies: ["logOnlyStrategy"]
+    - count: 100
+      level: "CRITICAL"
+      strategies: ["rejectActionStrategy", "emailActionStrategy"]
+      continuous: true
+```
+
+#### 🛠️ 系统级流控防护 (Sentinel)
+- **流量控制**：QPS限流、并发线程数限流、关联流控、链路流控
+- **熔断降级**：慢调用比例熔断、异常比例熔断、异常数量熔断
+- **热点参数防护**：针对热点参数的精准流控，防止热点数据压垮系统
+- **系统负载保护**：根据系统CPU使用率、平均RT等指标进行自适应限流
+- **集群流控**：分布式环境下的统一流控规则管理
+
+#### 🛠️ 其他安全防护机制
 - **认证授权**：Sa-Token JWT + RBAC权限模型
 - **防刷防爆破**：基于IP的参数限流，登录/注册1分钟最多30次
 - **IP防护**：Nacos + 布隆过滤器动态黑名单
